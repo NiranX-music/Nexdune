@@ -1,0 +1,1723 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEXDUNE — Pure C Frontier MoE Streaming Engine by NiranX</title>
+<meta name="description" content="Run frontier open mixture-of-experts models on hardware you already own. A zero-dependency C engine that streams weights in real time from NVMe/disk. Created by NiranX.">
+<meta property="og:title" content="NEXDUNE — Frontier MoE Inference Engine">
+<meta property="og:description" content="Run up to 2.8T parameter models with zero dependencies. Pure C, disk-streaming MoE architecture, NexBrio deterministic eval. Engineered by NiranX.">
+<meta property="og:type" content="website">
+<link rel="icon" type="image/svg+xml" href="nexdune-icon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<script>
+/* Theme init: zero flash of incorrect theme */
+(function(){
+  try{
+    var saved = localStorage.getItem('nexdune_theme');
+    var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    document.documentElement.setAttribute('data-theme', saved ? saved : (prefersDark ? 'dark' : 'light'));
+  }catch(e){}
+})();
+</script>
+<style>
+:root {
+  --nex-cyan: #00f2fe;
+  --nex-cyan-glow: rgba(0, 242, 254, 0.25);
+  --nex-blue: #3b82f6;
+  --nex-indigo: #6366f1;
+  --nex-amber: #f59e0b;
+  --nex-emerald: #10b981;
+  --nex-rose: #f43f5e;
+  
+  --font-sans: 'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-display: 'Space Grotesk', var(--font-sans);
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+/* Dark Theme (Default) */
+[data-theme="dark"] {
+  --bg-base: #07090e;
+  --bg-surface: #0d121c;
+  --bg-surface-elevated: #131b2a;
+  --bg-surface-glass: rgba(13, 18, 28, 0.75);
+  --bg-soft: #172134;
+  --bg-softer: #0f1624;
+  
+  --fg-main: #f8fafc;
+  --fg-body: #cbd5e1;
+  --fg-dim: #94a3b8;
+  --fg-faint: #64748b;
+  
+  --border-line: #1e293b;
+  --border-subtle: #172337;
+  --border-highlight: rgba(0, 242, 254, 0.35);
+  
+  --pill-bg: #1e293b;
+  --pill-hover: #334155;
+  --card-shadow: 0 16px 36px -8px rgba(0, 0, 0, 0.65);
+  --grid-pattern: radial-gradient(circle at 1px 1px, rgba(255,255,255,0.04) 1px, transparent 0);
+}
+
+/* Light Theme */
+[data-theme="light"] {
+  --bg-base: #f8fafc;
+  --bg-surface: #ffffff;
+  --bg-surface-elevated: #f1f5f9;
+  --bg-surface-glass: rgba(255, 255, 255, 0.85);
+  --bg-soft: #e2e8f0;
+  --bg-softer: #f8fafc;
+  
+  --fg-main: #090d16;
+  --fg-body: #334155;
+  --fg-dim: #64748b;
+  --fg-faint: #94a3b8;
+  
+  --border-line: #e2e8f0;
+  --border-subtle: #cbd5e1;
+  --border-highlight: rgba(14, 165, 233, 0.4);
+  
+  --pill-bg: #e2e8f0;
+  --pill-hover: #cbd5e1;
+  --card-shadow: 0 12px 28px -6px rgba(15, 23, 42, 0.08);
+  --grid-pattern: radial-gradient(circle at 1px 1px, rgba(0,0,0,0.05) 1px, transparent 0);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg-base);
+  color: var(--fg-body);
+  font: 400 15px/1.6 var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  background-image: var(--grid-pattern);
+  background-size: 28px 28px;
+  min-height: 100vh;
+}
+
+a { color: inherit; text-decoration: none; transition: color 0.2s, border-color 0.2s; }
+button { font-family: inherit; }
+
+.wide-container { max-width: 86rem; margin: 0 auto; padding: 0 2rem; }
+.mid-container { max-width: 68rem; margin: 0 auto; padding: 0 2rem; }
+.narrow-container { max-width: 48rem; margin: 0 auto; padding: 0 1.5rem; }
+
+/* ---- Header & Navbar ---- */
+.nex-header {
+  position: sticky; top: 0; z-index: 50;
+  background: var(--bg-surface-glass);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border-line);
+}
+.nex-nav-inner {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 1.5rem; height: 4.5rem; max-width: 90rem; margin: 0 auto; padding: 0 2rem;
+}
+.nexus-brand {
+  display: flex; align-items: center; gap: 0.85rem; flex: none;
+}
+.nexus-logo-icon {
+  width: 38px; height: 38px; display: block; border-radius: 9px;
+  box-shadow: 0 0 18px var(--nex-cyan-glow);
+}
+.nexus-brand-text {
+  display: flex; flex-direction: column;
+}
+.nexus-brand-title {
+  font-family: var(--font-display);
+  font-weight: 700; font-size: 1.45rem; line-height: 1.1;
+  letter-spacing: -0.02em; color: var(--fg-main);
+  background: linear-gradient(135deg, var(--fg-main) 60%, var(--nex-cyan));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.nexus-brand-author {
+  font-family: var(--font-mono); font-size: 10.5px;
+  color: var(--nex-cyan); letter-spacing: 0.06em; text-transform: uppercase;
+}
+
+.nex-nav-links {
+  display: flex; align-items: center; gap: 1.8rem;
+  font-size: 14.5px; font-weight: 600; flex: none;
+}
+.nex-nav-links a { color: var(--fg-dim); }
+.nex-nav-links a:hover { color: var(--fg-main); }
+
+.nex-search-wrapper {
+  flex: 1; max-width: 28rem; margin: 0 1rem;
+  position: relative; display: flex; align-items: center;
+}
+.nex-search-wrapper svg {
+  position: absolute; left: 1.1rem; width: 17px; height: 17px;
+  color: var(--fg-dim); pointer-events: none;
+}
+.nex-search-input {
+  width: 100%; border: 1px solid var(--border-line); outline: none;
+  background: var(--bg-surface); color: var(--fg-main);
+  font: 400 13.5px var(--font-sans); border-radius: 9999px;
+  padding: 0.65rem 1.2rem 0.65rem 2.6rem;
+  transition: all 0.25s ease;
+}
+.nex-search-input:focus {
+  border-color: var(--nex-cyan);
+  box-shadow: 0 0 0 3px var(--nex-cyan-glow);
+  background: var(--bg-surface-elevated);
+}
+.nex-search-input::placeholder { color: var(--fg-dim); }
+
+.nex-header-actions {
+  display: flex; align-items: center; gap: 0.75rem; flex: none;
+}
+
+/* Buttons and Pills */
+.nex-pill {
+  border-radius: 9999px; padding: 0.55rem 1.15rem;
+  font-size: 14px; font-weight: 600; display: inline-flex;
+  align-items: center; gap: 0.45rem; transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  cursor: pointer; border: 1px solid transparent; text-decoration: none;
+}
+.nex-pill.btn-ghost {
+  background: var(--pill-bg); color: var(--fg-main); border-color: var(--border-line);
+}
+.nex-pill.btn-ghost:hover {
+  background: var(--pill-hover); border-color: var(--fg-dim);
+}
+.nex-pill.btn-primary {
+  background: linear-gradient(135deg, #00f2fe 0%, #38bdf8 100%);
+  color: #07090e; font-weight: 700;
+  box-shadow: 0 4px 16px var(--nex-cyan-glow);
+}
+.nex-pill.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 22px rgba(0, 242, 254, 0.4);
+}
+.nex-pill.btn-large {
+  padding: 0.85rem 1.8rem; font-size: 15.5px;
+}
+
+/* Theme Toggle Button */
+.nex-theme-toggle {
+  width: 40px; height: 40px; flex: none; display: inline-flex;
+  align-items: center; justify-content: center;
+  border: 1px solid var(--border-line); border-radius: 9999px;
+  background: var(--bg-surface); cursor: pointer; color: var(--fg-main);
+  position: relative; transition: all 0.2s;
+}
+.nex-theme-toggle:hover {
+  border-color: var(--nex-cyan); background: var(--bg-surface-elevated);
+}
+.nex-theme-toggle svg {
+  position: absolute; transition: transform 0.35s cubic-bezier(0.4,0,0.2,1), opacity 0.25s;
+}
+.nex-theme-toggle .icon-moon { transform: rotate(0) scale(1); opacity: 1; }
+.nex-theme-toggle .icon-sun { transform: rotate(-90deg) scale(0); opacity: 0; }
+[data-theme="dark"] .nex-theme-toggle .icon-moon { transform: rotate(90deg) scale(0); opacity: 0; }
+[data-theme="dark"] .nex-theme-toggle .icon-sun { transform: rotate(0) scale(1); opacity: 1; }
+
+/* ---- Hero Section ---- */
+.nexus-hero {
+  padding: 5rem 0 3.5rem; position: relative; overflow: hidden;
+}
+.nexus-hero::before {
+  content: ''; position: absolute; top: -120px; left: 15%; width: 550px; height: 550px;
+  background: radial-gradient(circle, rgba(0, 242, 254, 0.12) 0%, rgba(99, 102, 241, 0.05) 50%, transparent 70%);
+  filter: blur(80px); pointer-events: none; z-index: 0;
+}
+.nexus-hero-grid {
+  display: grid; grid-template-columns: 1.08fr 0.92fr; gap: 4rem;
+  align-items: center; position: relative; z-index: 1;
+}
+
+.nex-badge-kicker {
+  display: inline-flex; align-items: center; gap: 0.55rem;
+  background: rgba(0, 242, 254, 0.08); border: 1px solid rgba(0, 242, 254, 0.3);
+  padding: 0.35rem 0.9rem; border-radius: 9999px; font-size: 12.5px;
+  font-family: var(--font-mono); color: var(--nex-cyan); margin-bottom: 1.4rem;
+}
+.nex-badge-pulse {
+  width: 7px; height: 7px; border-radius: 50%; background: var(--nex-cyan);
+  box-shadow: 0 0 10px var(--nex-cyan); animation: nexPulse 2s infinite;
+}
+@keyframes nexPulse {
+  0% { transform: scale(0.9); opacity: 0.8; }
+  50% { transform: scale(1.3); opacity: 1; box-shadow: 0 0 14px var(--nex-cyan); }
+  100% { transform: scale(0.9); opacity: 0.8; }
+}
+
+.nexus-hero h1 {
+  font-family: var(--font-display);
+  font-size: 4.1rem; line-height: 1.04; font-weight: 700;
+  letter-spacing: -0.04em; color: var(--fg-main); margin-bottom: 1.5rem;
+}
+.nexus-hero h1 .gradient-text {
+  background: linear-gradient(135deg, var(--nex-cyan) 0%, #38bdf8 50%, #818cf8 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.nexus-hero .hero-subtitle {
+  font-size: 1.2rem; line-height: 1.6; color: var(--fg-dim);
+  max-width: 34rem; margin-bottom: 2.2rem;
+}
+.nexus-hero-cta {
+  display: flex; gap: 0.85rem; align-items: center; flex-wrap: wrap; margin-bottom: 2rem;
+}
+
+/* Hero Terminal / Video Frame */
+.nexus-showcase-box {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-line);
+  border-radius: 18px; overflow: hidden;
+  box-shadow: var(--card-shadow), 0 0 35px rgba(0, 242, 254, 0.07);
+  transition: transform 0.3s ease, border-color 0.3s ease;
+}
+.nexus-showcase-box:hover {
+  border-color: var(--border-highlight);
+}
+.nexus-window-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0.75rem 1.2rem; background: var(--bg-surface-elevated);
+  border-bottom: 1px solid var(--border-line);
+}
+.nexus-window-dots {
+  display: flex; gap: 7px;
+}
+.nexus-dot {
+  width: 10px; height: 10px; border-radius: 50%;
+}
+.dot-red { background: #ff5f56; }
+.dot-yellow { background: #ffbd2e; }
+.dot-green { background: #27c93f; }
+
+.nexus-window-title {
+  font-family: var(--font-mono); font-size: 12px; color: var(--fg-dim);
+  display: flex; align-items: center; gap: 0.4rem;
+}
+.nexus-window-title span { color: var(--nex-cyan); }
+
+.nexus-video-container {
+  position: relative; background: #000;
+}
+.nexus-video-container video {
+  display: block; width: 100%; height: auto;
+}
+.nexus-showcase-box figcaption {
+  padding: 0.9rem 1.2rem; font-size: 13.5px; line-height: 1.5;
+  color: var(--fg-dim); background: var(--bg-surface);
+  border-top: 1px solid var(--border-line);
+}
+.nexus-showcase-box figcaption code {
+  font-family: var(--font-mono); font-size: 12.5px;
+  background: var(--bg-soft); color: var(--fg-main);
+  padding: 2px 7px; border-radius: 4px;
+}
+
+/* Hardware Matrix Ribbon */
+.nexus-trust-section {
+  padding: 2.2rem 0 4.5rem; text-align: center;
+}
+.nexus-trust-label {
+  color: var(--fg-faint); font-family: var(--font-mono); font-size: 12.5px;
+  text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 1.2rem;
+}
+.nexus-trust-logos {
+  display: flex; justify-content: center; align-items: center;
+  gap: 1.8rem; flex-wrap: wrap;
+}
+.nexus-hardware-badge {
+  background: var(--bg-surface); border: 1px solid var(--border-line);
+  padding: 0.5rem 1.1rem; border-radius: 8px; font-family: var(--font-mono);
+  font-size: 13px; font-weight: 500; color: var(--fg-dim);
+  transition: all 0.2s;
+}
+.nexus-hardware-badge:hover {
+  border-color: var(--nex-cyan); color: var(--fg-main);
+  transform: translateY(-2px);
+}
+
+/* ---- Sticky Rail Layout ---- */
+.nexus-rail-layout {
+  display: grid; grid-template-columns: 16rem 1fr; gap: 4.5rem;
+  align-items: start; padding-bottom: 6rem;
+}
+.nexus-sticky-rail {
+  position: sticky; top: 6.5rem;
+}
+.nexus-rail-menu {
+  display: flex; flex-direction: column;
+  border-left: 2px solid var(--border-line);
+  padding-left: 1rem; gap: 0.5rem;
+}
+.nexus-rail-menu a {
+  padding: 0.65rem 0.6rem; color: var(--fg-faint); font-size: 14.5px;
+  font-weight: 500; border-radius: 6px; transition: all 0.2s;
+  display: block;
+}
+.nexus-rail-menu a:hover {
+  color: var(--fg-main); background: var(--bg-soft);
+}
+.nexus-rail-menu a.is-active {
+  color: var(--nex-cyan); font-weight: 700;
+  border-left: 2px solid var(--nex-cyan); margin-left: -1rem; padding-left: 1rem;
+}
+
+/* Deep Dive Content Blocks */
+.nex-deepdive-block {
+  padding-bottom: 6.5rem;
+}
+.nex-deepdive-block:last-child {
+  padding-bottom: 1rem;
+}
+.nex-deepdive-block h2 {
+  font-family: var(--font-display); font-size: 2.7rem; font-weight: 700;
+  letter-spacing: -0.035em; color: var(--fg-main); margin-bottom: 1rem;
+}
+.nex-deepdive-block .block-lead {
+  font-size: 1.15rem; line-height: 1.6; color: var(--fg-dim);
+  max-width: 44rem; margin-bottom: 2.5rem;
+}
+.nex-source-note {
+  color: var(--fg-faint); font-size: 13.5px; margin-top: 1.4rem;
+}
+.nex-more-link {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  margin-top: 1.5rem; color: var(--nex-cyan); font-weight: 600;
+  font-size: 14.5px; border-bottom: 1px dashed var(--nex-cyan); padding-bottom: 2px;
+}
+.nex-more-link:hover {
+  color: var(--fg-main); border-bottom-style: solid;
+}
+
+/* Performance Benchmark Bars */
+.nexus-benchmark-chart {
+  display: grid; gap: 0.75rem; background: var(--bg-surface);
+  border: 1px solid var(--border-line); border-radius: 14px;
+  padding: 1.5rem 1.8rem; box-shadow: var(--card-shadow);
+}
+.nex-chart-row {
+  display: grid; grid-template-columns: 16.5rem 1fr auto;
+  align-items: center; gap: 1.2rem; font-size: 14px;
+}
+.nex-chart-label {
+  color: var(--fg-main); font-weight: 600;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.nex-chart-label small {
+  color: var(--fg-dim); font-weight: 400; font-size: 12.5px; margin-left: 0.5rem;
+}
+.nex-track-wrapper {
+  height: 12px; background: var(--bg-soft); border-radius: 4px; overflow: hidden;
+}
+.nex-bar-fill {
+  display: block; height: 100%; border-radius: 4px;
+  background: linear-gradient(90deg, #38bdf8 0%, #00f2fe 100%);
+  transition: width 1s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.nex-bar-fill.bar-muted {
+  background: linear-gradient(90deg, #64748b 0%, #94a3b8 100%);
+}
+.nex-chart-value {
+  text-align: right; font-family: var(--font-mono); font-weight: 600;
+  color: var(--fg-main); white-space: nowrap; min-width: 6rem;
+}
+.nex-chart-value small {
+  font-weight: 400; color: var(--fg-dim); font-size: 12px;
+}
+
+/* Comparison Table */
+.nexus-table {
+  width: 100%; border-collapse: collapse; font-size: 15px; margin-top: 1rem;
+  background: var(--bg-surface); border: 1px solid var(--border-line);
+  border-radius: 12px; overflow: hidden;
+}
+.nexus-table th {
+  text-align: left; font-weight: 600; color: var(--fg-dim);
+  font-size: 13px; text-transform: uppercase; letter-spacing: 0.05em;
+  padding: 1rem 1.5rem; background: var(--bg-surface-elevated);
+}
+.nexus-table td {
+  padding: 1.1rem 1.5rem; border-top: 1px solid var(--border-line);
+  vertical-align: baseline;
+}
+.nexus-table td.pillar-name {
+  font-weight: 700; color: var(--fg-main); width: 28%;
+}
+.nexus-table td.pillar-desc {
+  color: var(--fg-dim);
+}
+
+/* NexBrio Section Cards & Code */
+.nexbrio-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem; margin-top: 2rem;
+}
+.nexbrio-card {
+  background: var(--bg-surface); border: 1px solid var(--border-line);
+  border-radius: 14px; padding: 1.5rem; box-shadow: var(--card-shadow);
+  transition: all 0.2s;
+}
+.nexbrio-card:hover {
+  border-color: var(--border-highlight); transform: translateY(-2px);
+}
+.nexbrio-card h3 {
+  font-family: var(--font-display); font-size: 1.15rem; font-weight: 700;
+  color: var(--fg-main); margin-bottom: 0.5rem;
+}
+.nexbrio-card p {
+  color: var(--fg-dim); font-size: 14px; line-height: 1.55;
+}
+.nexbrio-card .nexbrio-io {
+  margin-top: 1rem; font-family: var(--font-mono); font-size: 12.5px;
+  line-height: 1.8; color: var(--fg-body); background: var(--bg-softer);
+  border: 1px solid var(--border-line); border-radius: 8px; padding: 0.75rem 0.9rem;
+}
+.nexbrio-card .nexbrio-io strong {
+  color: var(--nex-cyan); font-weight: 600;
+}
+
+.nex-code-dual {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-top: 2rem;
+}
+.nex-code-box {
+  background: var(--bg-surface); border: 1px solid var(--border-line);
+  border-radius: 14px; padding: 1.25rem 1.5rem; box-shadow: var(--card-shadow);
+  font: 400 12.5px/1.8 var(--font-mono); position: relative;
+}
+.nex-code-header {
+  display: flex; justify-content: space-between; align-items: center;
+  border-bottom: 1px solid var(--border-line); padding-bottom: 0.6rem; margin-bottom: 0.8rem;
+}
+.nex-code-tag {
+  color: var(--nex-cyan); font-size: 11px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.08em;
+}
+.nex-code-box pre {
+  white-space: pre-wrap; word-break: break-word; color: #e2e8f0;
+}
+.token-key { color: #38bdf8; }
+.token-str { color: #34d399; }
+.token-num { color: #fbbf24; }
+.token-bool { color: #f472b6; }
+
+/* Interactive NexBrio Sandbox */
+.nexbrio-interactive-sandbox {
+  background: var(--bg-surface); border: 1px solid var(--border-line);
+  border-radius: 16px; padding: 1.8rem; margin: 2rem 0; box-shadow: var(--card-shadow);
+}
+.sandbox-tabs {
+  display: flex; gap: 0.5rem; margin-bottom: 1.2rem; flex-wrap: wrap;
+}
+.sandbox-tab-btn {
+  background: var(--bg-soft); border: 1px solid var(--border-line);
+  color: var(--fg-dim); padding: 0.45rem 1rem; border-radius: 8px;
+  font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s;
+}
+.sandbox-tab-btn.active {
+  background: var(--nex-cyan); color: #07090e; border-color: var(--nex-cyan);
+}
+.sandbox-content {
+  display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 1.8rem; align-items: start;
+}
+.sandbox-pane {
+  background: var(--bg-surface-elevated); border: 1px solid var(--border-line);
+  border-radius: 10px; padding: 1.2rem;
+}
+.sandbox-label {
+  font-family: var(--font-mono); font-size: 11.5px; color: var(--fg-dim);
+  text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 0.6rem;
+}
+
+/* Models Fleet Section */
+.nexus-fleet-section {
+  padding: 4rem 0 6rem;
+}
+.nexus-fleet-header {
+  text-align: center; max-width: 44rem; margin: 0 auto 3rem;
+}
+.nexus-fleet-header h2 {
+  font-family: var(--font-display); font-size: 3rem; font-weight: 700;
+  letter-spacing: -0.04em; color: var(--fg-main); margin-bottom: 0.8rem;
+}
+.nexus-fleet-header p {
+  color: var(--fg-dim); font-size: 1.15rem; line-height: 1.6;
+}
+
+.nex-filter-bar {
+  display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;
+  justify-content: center; margin-bottom: 2rem;
+}
+.nex-filter-btn {
+  font: 500 13.5px var(--font-mono); color: var(--fg-dim);
+  background: var(--bg-surface); border: 1px solid var(--border-line);
+  border-radius: 9999px; padding: 0.45rem 1.1rem; cursor: pointer;
+  transition: all 0.2s;
+}
+.nex-filter-btn:hover {
+  background: var(--bg-soft); color: var(--fg-main);
+}
+.nex-filter-btn.active {
+  background: var(--fg-main); color: var(--bg-base); border-color: var(--fg-main);
+  font-weight: 700;
+}
+
+.nex-models-grid {
+  display: grid; gap: 1.5rem;
+}
+.nex-model-card {
+  background: var(--bg-surface); border: 1px solid var(--border-line);
+  border-radius: 16px; padding: 1.8rem 2rem; box-shadow: var(--card-shadow);
+  transition: all 0.25s ease; position: relative; overflow: hidden;
+}
+.nex-model-card:hover {
+  border-color: var(--border-highlight);
+  transform: translateY(-2px);
+}
+.nex-card-top {
+  display: flex; justify-content: space-between; align-items: flex-start;
+  gap: 1.5rem; margin-bottom: 0.6rem;
+}
+.nex-model-card h3 {
+  font-family: var(--font-display); font-size: 1.65rem; font-weight: 700;
+  color: var(--fg-main); letter-spacing: -0.02em;
+}
+.nex-model-card h3 a:hover {
+  color: var(--nex-cyan);
+}
+.nex-param-badge {
+  display: inline-flex; align-items: center; gap: 0.6rem;
+  background: var(--bg-surface-elevated); border: 1px solid var(--border-line);
+  padding: 0.35rem 0.8rem; border-radius: 8px; font-family: var(--font-mono);
+  font-size: 12.5px; color: var(--fg-main);
+}
+.nex-card-desc {
+  font-size: 14.5px; line-height: 1.6; color: var(--fg-body);
+  max-width: 52rem; margin-bottom: 1rem;
+}
+.nex-tag-list {
+  display: flex; gap: 0.45rem; flex-wrap: wrap; margin-bottom: 1rem;
+}
+.nex-tag {
+  font-family: var(--font-mono); font-size: 12px; font-weight: 500;
+  border-radius: 6px; padding: 2px 9px; line-height: 1.5;
+}
+.tag-moe { color: #818cf8; background: rgba(129, 140, 248, 0.12); border: 1px solid rgba(129, 140, 248, 0.25); }
+.tag-quant { color: #34d399; background: rgba(52, 211, 153, 0.12); border: 1px solid rgba(52, 211, 153, 0.25); }
+.tag-vision { color: #38bdf8; background: rgba(56, 189, 248, 0.12); border: 1px solid rgba(56, 189, 248, 0.25); }
+.tag-feature { color: #fbbf24; background: rgba(251, 191, 36, 0.12); border: 1px solid rgba(251, 191, 36, 0.25); }
+.tag-danger { color: #f43f5e; background: rgba(244, 63, 94, 0.12); border: 1px solid rgba(244, 63, 94, 0.25); }
+
+.nex-card-meta {
+  display: flex; gap: 1.4rem; flex-wrap: wrap; font-size: 13.5px;
+  color: var(--fg-dim); align-items: center; margin-bottom: 1.1rem;
+}
+.nex-card-meta span, .nex-card-meta a {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+}
+.nex-card-meta a {
+  color: var(--nex-cyan); text-decoration: underline; text-underline-offset: 3px;
+}
+.nex-card-meta a:hover {
+  color: var(--fg-main);
+}
+.nex-card-meta svg {
+  width: 15px; height: 15px; flex: none;
+}
+
+.nex-copy-box {
+  display: flex; gap: 0.6rem; align-items: stretch;
+}
+.nex-copy-box code {
+  flex: 1; min-width: 0; font: 400 13px/1.5 var(--font-mono);
+  color: var(--fg-main); background: var(--bg-softer);
+  border: 1px solid var(--border-line); border-radius: 8px;
+  padding: 0.65rem 0.9rem; white-space: pre-wrap; word-break: break-all;
+}
+.nex-copy-btn {
+  font: 600 12.5px var(--font-mono); color: var(--fg-main);
+  background: var(--bg-surface-elevated); border: 1px solid var(--border-line);
+  border-radius: 8px; padding: 0.55rem 1rem; cursor: pointer; flex: none;
+  transition: all 0.2s; display: inline-flex; align-items: center; gap: 0.35rem;
+}
+.nex-copy-btn:hover {
+  background: var(--nex-cyan); color: #07090e; border-color: var(--nex-cyan);
+}
+.nex-none-msg {
+  text-align: center; color: var(--fg-dim); padding: 3rem 0; font-size: 1.1rem;
+}
+
+/* Architecture Blueprint Section */
+.nexus-blueprint-box {
+  background: var(--bg-surface); border: 1px solid var(--border-line);
+  border-radius: 18px; padding: 2.2rem; margin: 2rem 0; box-shadow: var(--card-shadow);
+}
+.blueprint-flow {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem;
+  margin-top: 1.5rem; position: relative;
+}
+.blueprint-node {
+  background: var(--bg-surface-elevated); border: 1px solid var(--border-line);
+  border-radius: 12px; padding: 1.25rem; text-align: center;
+  position: relative; transition: all 0.2s;
+}
+.blueprint-node:hover {
+  border-color: var(--nex-cyan); transform: translateY(-2px);
+}
+.blueprint-step-num {
+  font-family: var(--font-mono); font-size: 11px; color: var(--nex-cyan);
+  font-weight: 700; margin-bottom: 0.4rem;
+}
+.blueprint-node h4 {
+  font-family: var(--font-display); font-size: 15px; color: var(--fg-main); margin-bottom: 0.4rem;
+}
+.blueprint-node p {
+  font-size: 12.5px; color: var(--fg-dim); line-height: 1.45;
+}
+
+/* CLI Quickstart Tabs */
+.nexus-cli-section {
+  background: var(--bg-surface); border: 1px solid var(--border-line);
+  border-radius: 18px; padding: 2.5rem; margin-top: 2rem; box-shadow: var(--card-shadow);
+}
+.cli-tabs-nav {
+  display: flex; gap: 0.5rem; margin-bottom: 1.2rem; border-bottom: 1px solid var(--border-line);
+  padding-bottom: 0.8rem;
+}
+.cli-tab-btn {
+  background: none; border: none; font-family: var(--font-mono); font-size: 13.5px;
+  color: var(--fg-dim); padding: 0.4rem 0.9rem; border-radius: 6px; cursor: pointer;
+  transition: all 0.2s; font-weight: 600;
+}
+.cli-tab-btn:hover { color: var(--fg-main); background: var(--bg-soft); }
+.cli-tab-btn.active { color: var(--nex-cyan); background: var(--bg-surface-elevated); }
+
+/* Closing Monolith Section */
+.nexus-closing-section {
+  text-align: center; padding: 7rem 0 8rem; position: relative;
+}
+.nexus-closing-monolith {
+  width: 90px; height: 90px; margin: 0 auto 2.2rem; display: block;
+  filter: drop-shadow(0 0 25px var(--nex-cyan-glow));
+}
+.nexus-closing-section h2 {
+  font-family: var(--font-display); font-size: 3.5rem; font-weight: 700;
+  letter-spacing: -0.04em; line-height: 1.1; max-width: 24ch; margin: 0 auto 1.5rem;
+  color: var(--fg-main);
+}
+.nexus-closing-section p {
+  color: var(--fg-dim); font-size: 1.2rem; max-width: 38rem; margin: 0 auto 2.4rem;
+}
+
+/* Footer */
+.nexus-footer {
+  border-top: 1px solid var(--border-line); background: var(--bg-surface);
+}
+.nexus-footer-inner {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 1.5rem; max-width: 90rem; margin: 0 auto; padding: 2rem;
+  font-size: 13.5px; color: var(--fg-dim); flex-wrap: wrap;
+}
+.nexus-footer-brand {
+  display: flex; align-items: center; gap: 0.6rem;
+}
+.nexus-footer-links {
+  display: flex; gap: 1.8rem; flex-wrap: wrap; font-weight: 500;
+}
+.nexus-footer-links a:hover { color: var(--nex-cyan); }
+
+/* Toast Notification */
+.nex-toast {
+  position: fixed; bottom: 2rem; right: 2rem; z-index: 100;
+  background: var(--bg-surface-elevated); border: 1px solid var(--nex-cyan);
+  color: var(--fg-main); padding: 0.8rem 1.4rem; border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5); font-family: var(--font-mono); font-size: 13px;
+  display: flex; align-items: center; gap: 0.6rem; opacity: 0; pointer-events: none;
+  transform: translateY(15px); transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.nex-toast.show {
+  opacity: 1; pointer-events: auto; transform: translateY(0);
+}
+
+/* Responsive Breakpoints */
+@media (max-width: 1024px) {
+  .nexus-hero h1 { font-size: 3.2rem; }
+  .nexus-hero-grid { grid-template-columns: 1fr; gap: 3rem; }
+  .nexus-rail-layout { grid-template-columns: 1fr; gap: 2rem; }
+  .nexus-sticky-rail { position: relative; top: 0; }
+  .nexus-rail-menu { border-left: none; border-bottom: 2px solid var(--border-line); flex-direction: row; overflow-x: auto; padding-left: 0; padding-bottom: 0.5rem; }
+  .nexus-rail-menu a.is-active { border-left: none; border-bottom: 2px solid var(--nex-cyan); margin-left: 0; padding-left: 0.6rem; }
+  .nexbrio-grid { grid-template-columns: 1fr; }
+  .nex-code-dual { grid-template-columns: 1fr; }
+  .blueprint-flow { grid-template-columns: 1fr 1fr; }
+  .sandbox-content { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 768px) {
+  .nex-nav-inner { padding: 0 1rem; }
+  .nex-nav-links { display: none; }
+  .nex-search-wrapper { max-width: 14rem; }
+  .nexus-hero h1 { font-size: 2.6rem; }
+  .blueprint-flow { grid-template-columns: 1fr; }
+  .nexus-closing-section h2 { font-size: 2.4rem; }
+}
+
+.theme-transition, .theme-transition * {
+  transition: background-color 0.25s ease, color 0.25s ease, border-color 0.25s ease !important;
+}
+</style>
+</head>
+<body>
+
+<!-- Header Navigation Component (nex-header) -->
+<header class="nex-header">
+  <div class="nex-nav-inner">
+    <a class="nexus-brand" href="#top">
+      <svg class="nexus-logo-icon" viewBox="0 0 512 512" fill="none" aria-hidden="true">
+        <rect width="512" height="512" rx="112" fill="#0d121c"/>
+        <rect width="510" height="510" x="1" y="1" rx="111" stroke="#00f2fe" stroke-width="2" stroke-opacity="0.3"/>
+        <circle cx="256" cy="256" r="140" fill="#00f2fe" fill-opacity="0.12"/>
+        <path d="M128 376V156C128 142.745 138.745 132 152 132H184C197.255 132 208 142.745 208 156V376C208 389.255 197.255 400 184 400H152C138.745 400 128 389.255 128 376Z" fill="#00f2fe"/>
+        <path d="M304 376V156C304 142.745 314.745 132 328 132H360C373.255 132 384 142.745 384 156V376C384 389.255 373.255 400 360 400H328C314.745 400 304 389.255 304 376Z" fill="#00f2fe"/>
+        <path d="M184 144L328 356C335 366.5 348 370 358 363L366 357C376 350 378 337 371 326.5L227 114C220 103.5 207 100 197 107L189 113C179 120 177 133 184 144Z" fill="#f59e0b"/>
+        <circle cx="256" cy="235" r="14" fill="#ffffff"/>
+      </svg>
+      <div class="nexus-brand-text">
+        <span class="nexus-brand-title">NEXDUNE</span>
+        <span class="nexus-brand-author">by NiranX</span>
+      </div>
+    </a>
+
+    <nav class="nex-nav-links">
+      <a href="#nexus-fleet">Models Fleet</a>
+      <a href="#nexbrio">NexBrio</a>
+      <a href="#nex-memory">Benchmarks</a>
+      <a href="#nex-architecture">Architecture</a>
+      <a href="https://github.com/NiranX-music/Nexdune/blob/main/docs/quickstart.md" target="_blank" rel="noopener">Docs</a>
+    </nav>
+
+    <div class="nex-search-wrapper">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="nexSearchInput" class="nex-search-input" type="search" placeholder="Search 9 frontier models..." autocomplete="off">
+    </div>
+
+    <div class="nex-header-actions">
+      <button type="button" class="nex-theme-toggle" id="nexThemeBtn" aria-label="Toggle theme" title="Switch theme (Shortcut: D)">
+        <svg class="icon-sun" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2.5M12 19.5V22M4.22 4.22l1.77 1.77M18.01 18.01l1.77 1.77M2 12h2.5M19.5 12H22M4.22 19.78l1.77-1.77M18.01 5.99l1.77-1.77"/></svg>
+        <svg class="icon-moon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      </button>
+      <a class="nex-pill btn-ghost" href="https://github.com/NiranX-music/Nexdune/blob/main/docs/quickstart.md" target="_blank" rel="noopener">Quickstart</a>
+      <a class="nex-pill btn-primary" href="https://github.com/NiranX-music/Nexdune" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+        GitHub
+      </a>
+    </div>
+  </div>
+</header>
+
+<main id="top">
+
+  <!-- Hero Section Component (nexus-hero) -->
+  <section class="nexus-hero">
+    <div class="wide-container nexus-hero-grid">
+      <div>
+        <div class="nex-badge-kicker">
+          <span class="nex-badge-pulse"></span>
+          <span>NEXUS ENGINE v1.12.1 • ZERO DEPENDENCY C RUNTIME</span>
+        </div>
+        <h1>Run Frontier Models.<br><span class="gradient-text">Keep Your Hardware.</span></h1>
+        <p class="hero-subtitle">
+          <strong>NEXDUNE</strong> streams mixture-of-experts parameters in real time directly from your NVMe/SSD drive instead of loading them all into VRAM. Run models up to <strong>2.8 Trillion parameters</strong> on standard hardware you already own.
+        </p>
+        <div class="nexus-hero-cta">
+          <a class="nex-pill btn-primary btn-large" href="#nexus-fleet">Browse Models Fleet</a>
+          <a class="nex-pill btn-ghost btn-large" href="https://github.com/NiranX-music/Nexdune/blob/main/docs/quickstart.md" target="_blank" rel="noopener">Quickstart Guide</a>
+        </div>
+      </div>
+
+      <!-- Showcase Terminal Video Frame -->
+      <figure class="nexus-showcase-box">
+        <div class="nexus-window-bar">
+          <div class="nexus-window-dots">
+            <span class="nexus-dot dot-red"></span>
+            <span class="nexus-dot dot-yellow"></span>
+            <span class="nexus-dot dot-green"></span>
+          </div>
+          <div class="nexus-window-title">
+            <span>nexus-stream</span> &mdash; nexdune chat &amp; nexbrio
+          </div>
+        </div>
+        <div class="nexus-video-container">
+          <video src="demo.webm" poster="demo-poster.jpg" width="1280" height="800"
+                 autoplay muted loop playsinline preload="metadata"
+                 aria-label="A live Nexdune session: terminal chat followed by NexBrio deterministic scoring"></video>
+        </div>
+        <figcaption>
+          A real live session: <code>nexdune chat</code> attached to a local running server, then running in <strong>NexBrio</strong> deterministic mode. The numbers are pure live inference.
+        </figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <!-- Hardware Trust Matrix Ribbon -->
+  <section class="nexus-trust-section">
+    <div class="wide-container">
+      <div class="nexus-trust-label">Verified &amp; Measured Today on Real Hardware Machines</div>
+      <div class="nexus-trust-logos">
+        <span class="nexus-hardware-badge">NVIDIA RTX 5090</span>
+        <span class="nexus-hardware-badge">AWS Graviton4</span>
+        <span class="nexus-hardware-badge">Dual Xeon Gold 6430</span>
+        <span class="nexus-hardware-badge">NVIDIA DGX Spark</span>
+        <span class="nexus-hardware-badge">Apple M5 Max Metal</span>
+        <span class="nexus-hardware-badge">AMD Ryzen 9 9950X3D</span>
+        <span class="nexus-hardware-badge">Apple Mac Mini M4</span>
+        <span class="nexus-hardware-badge">NiranX Dev Box</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Models Fleet Section Component (nexus-fleet) -->
+  <section class="nexus-fleet-section" id="nexus-fleet">
+    <div class="narrow-container">
+      <div class="nexus-fleet-header">
+        <h2>Nexus Model Fleet</h2>
+        <p>Pull pre-converted quantized containers or point the Nexus C engine directly at the original upstream weights.</p>
+      </div>
+
+      <!-- Filter Bar -->
+      <div class="nex-filter-bar">
+        <button class="nex-filter-btn active" data-filter="all">All Models</button>
+        <button class="nex-filter-btn" data-filter="vision">Vision</button>
+        <button class="nex-filter-btn" data-filter="audio">Audio</button>
+        <button class="nex-filter-btn" data-filter="tools">Tools</button>
+        <button class="nex-filter-btn" data-filter="int4">Int4 / FP4</button>
+        <button class="nex-filter-btn" data-filter="mtp">MTP</button>
+      </div>
+
+      <div class="nex-models-grid" id="nexModelList">
+
+        <!-- Model 1: GLM-5.2 -->
+        <article class="nex-model-card" data-find="glm-5.2 glm z.ai nexdune.c moe int4 mla mtp" data-tags="moe int4 mla mtp">
+          <div class="nex-card-top">
+            <h3><a href="https://github.com/NiranX-music/Nexdune/blob/main/docs/quickstart.md" target="_blank" rel="noopener">GLM-5.2</a></h3>
+            <div class="nex-param-badge">
+              <span><strong>744B</strong> total</span> &middot; <span><strong>40B</strong> active</span>
+            </div>
+          </div>
+          <p class="nex-card-desc">The flagship model Nexdune was architected around. 78 layers, 256 routed experts streamed from NVMe on a machine that could never hold them.</p>
+          <div class="nex-tag-list">
+            <span class="nex-tag tag-moe">MoE</span>
+            <span class="nex-tag tag-quant">int4</span>
+            <span class="nex-tag tag-feature">MLA</span>
+            <span class="nex-tag tag-feature">MTP</span>
+          </div>
+          <div class="nex-card-meta">
+            <a href="https://huggingface.co/mastouri/GLM-5.2-nexdune-int4-g64-with-int8-mtp" target="_blank" rel="noopener">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 19h16"/></svg>container (372 GB)
+            </a>
+            <a href="https://huggingface.co/zai-org/GLM-5.2-FP8" target="_blank" rel="noopener">upstream weights</a>
+            <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>nexdune.c</span>
+          </div>
+          <div class="nex-copy-box">
+            <code>hf download mastouri/GLM-5.2-nexdune-int4-g64-with-int8-mtp --local-dir ~/Models/glm52_i4</code>
+            <button class="nex-copy-btn" type="button">Copy</button>
+          </div>
+        </article>
+
+        <!-- Model 2: GLM-5.3-Flash -->
+        <article class="nex-model-card" data-find="glm-5.3-flash glm53 z.ai glm53.c moe int4-gs64 vision" data-tags="moe int4-gs64 vision">
+          <div class="nex-card-top">
+            <h3><a href="https://github.com/NiranX-music/Nexdune/blob/main/docs/glm53-flash.md" target="_blank" rel="noopener">GLM-5.3-Flash</a></h3>
+            <div class="nex-param-badge">
+              <span><strong>320B</strong> total</span> &middot; <span><strong>18B</strong> active</span>
+            </div>
+          </div>
+          <p class="nex-card-desc">Natively multimodal. Routed experts convert to int4-gs64, the dense set stays BF16 and its precision is a load-time choice.</p>
+          <div class="nex-tag-list">
+            <span class="nex-tag tag-moe">MoE</span>
+            <span class="nex-tag tag-quant">int4-gs64</span>
+            <span class="nex-tag tag-vision">vision</span>
+          </div>
+          <div class="nex-card-meta">
+            <a href="https://huggingface.co/Justvugg/GLM-5.3-nexdune-int4-g64" target="_blank" rel="noopener">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 19h16"/></svg>container (419 GB)
+            </a>
+            <a href="https://huggingface.co/zai-org/GLM-5.3-Flash" target="_blank" rel="noopener">upstream</a>
+            <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>glm53.c</span>
+          </div>
+          <div class="nex-copy-box">
+            <code>hf download Justvugg/GLM-5.3-nexdune-int4-g64 --local-dir ~/Models/glm53_i4</code>
+            <button class="nex-copy-btn" type="button">Copy</button>
+          </div>
+        </article>
+
+        <!-- Model 3: DeepSeek-V4.1-Flash -->
+        <article class="nex-model-card" data-find="deepseek v4.1 flash deepseek_v41 deepseek_v41.c moe fp4 vision tools dspark" data-tags="moe fp4 vision tools dspark">
+          <div class="nex-card-top">
+            <h3><a href="https://github.com/NiranX-music/Nexdune/blob/main/docs/deepseek-v41.md" target="_blank" rel="noopener">DeepSeek-V4.1-Flash</a></h3>
+            <div class="nex-param-badge">
+              <span><strong>552B</strong> total</span> &middot; <span><strong>16B</strong> active</span>
+            </div>
+          </div>
+          <p class="nex-card-desc">Runs off the official checkpoint untouched: experts are already native fp4, dense set fp8-e4m3. Routed experts cost only 4.5 GB per token against GLM's 12.7.</p>
+          <div class="nex-tag-list">
+            <span class="nex-tag tag-moe">MoE</span>
+            <span class="nex-tag tag-quant">fp4</span>
+            <span class="nex-tag tag-vision">vision</span>
+            <span class="nex-tag tag-feature">tools</span>
+            <span class="nex-tag tag-feature">DSpark</span>
+          </div>
+          <div class="nex-card-meta">
+            <a href="https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash" target="_blank" rel="noopener">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 19h16"/></svg>official (no conversion)
+            </a>
+            <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>deepseek_v41.c</span>
+          </div>
+          <div class="nex-copy-box">
+            <code>hf download deepseek-ai/DeepSeek-V4.1-Flash --local-dir ~/Models/DeepSeek-V4.1-Flash</code>
+            <button class="nex-copy-btn" type="button">Copy</button>
+          </div>
+        </article>
+
+        <!-- Model 4: DeepSeek-V4-Flash -->
+        <article class="nex-model-card" data-find="deepseek v4 flash deepseek_v4 deepseek_v4.c moe fp4 mtp reap" data-tags="moe fp4 mtp reap">
+          <div class="nex-card-top">
+            <h3><a href="https://github.com/NiranX-music/Nexdune/blob/main/docs/deepseek-v4.md" target="_blank" rel="noopener">DeepSeek-V4-Flash</a></h3>
+            <div class="nex-param-badge">
+              <span><strong>284B</strong> total</span> &middot; <span><strong>13B</strong> active</span>
+            </div>
+          </div>
+          <p class="nex-card-desc">Native fp4 experts, fp8-e4m3 dense. The REAP-pruned 150B cut (132 of 256 experts, 85 GB) loads with the exact same engine and zero conversion.</p>
+          <div class="nex-tag-list">
+            <span class="nex-tag tag-moe">MoE</span>
+            <span class="nex-tag tag-quant">fp4</span>
+            <span class="nex-tag tag-feature">MTP</span>
+            <span class="nex-tag tag-feature">REAP</span>
+          </div>
+          <div class="nex-card-meta">
+            <a href="https://huggingface.co/deepseek-ai/DeepSeek-V4-Flash-0731" target="_blank" rel="noopener">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 19h16"/></svg>official checkpoint
+            </a>
+            <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>deepseek_v4.c</span>
+          </div>
+          <div class="nex-copy-box">
+            <code>hf download deepseek-ai/DeepSeek-V4-Flash-0731 --local-dir ~/Models/DeepSeek-V4-Flash</code>
+            <button class="nex-copy-btn" type="button">Copy</button>
+          </div>
+        </article>
+
+        <!-- Model 5: Kimi-K3 -->
+        <article class="nex-model-card" data-find="kimi k3 moonshot kimi_k3.c moe mxfp4 kda largest" data-tags="moe mxfp4 kda largest">
+          <div class="nex-card-top">
+            <h3><a href="https://github.com/NiranX-music/Nexdune/blob/main/docs/kimi_k3.md" target="_blank" rel="noopener">Kimi-K3</a></h3>
+            <div class="nex-param-badge">
+              <span><strong>2.8T</strong> total</span> &middot; <span><strong>104B</strong> active</span>
+            </div>
+          </div>
+          <p class="nex-card-desc">The absolute largest frontier model Nexdune runs. 93 layers, 69 Kimi Delta Attention plus 24 gated MLA, and 16 of 896 experts per token. QAT-trained MXFP4 streams straight from original shards.</p>
+          <div class="nex-tag-list">
+            <span class="nex-tag tag-moe">MoE</span>
+            <span class="nex-tag tag-quant">MXFP4</span>
+            <span class="nex-tag tag-feature">KDA</span>
+            <span class="nex-tag tag-danger">2.8T Heavy</span>
+          </div>
+          <div class="nex-card-meta">
+            <a href="https://huggingface.co/moonshotai/Kimi-K3" target="_blank" rel="noopener">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 19h16"/></svg>official shards
+            </a>
+            <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>kimi_k3.c</span>
+          </div>
+          <div class="nex-copy-box">
+            <code>hf download moonshotai/Kimi-K3 --local-dir ~/Models/Kimi-K3</code>
+            <button class="nex-copy-btn" type="button">Copy</button>
+          </div>
+        </article>
+
+        <!-- Model 6: Inkling -->
+        <article class="nex-model-card" data-find="inkling thinking machines inkling.c moe int4 audio apache 2.0" data-tags="moe int4 audio apache 2.0">
+          <div class="nex-card-top">
+            <h3><a href="https://github.com/NiranX-music/Nexdune/blob/main/docs/inkling.md" target="_blank" rel="noopener">Inkling</a></h3>
+            <div class="nex-param-badge">
+              <span><strong>975B</strong> total</span> &middot; <span><strong>41B</strong> active</span>
+            </div>
+          </div>
+          <p class="nex-card-desc">Sliding-window attention with short convolutions. Native audio input is supported; the dense backbone fits neatly on a 25 GB host at only 15.3 GB.</p>
+          <div class="nex-tag-list">
+            <span class="nex-tag tag-moe">MoE</span>
+            <span class="nex-tag tag-quant">int4</span>
+            <span class="nex-tag tag-feature">audio</span>
+            <span class="nex-tag tag-feature">Apache 2.0</span>
+          </div>
+          <div class="nex-card-meta">
+            <a href="https://huggingface.co/nbeerbower/Inkling-nexdune-int4" target="_blank" rel="noopener">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 19h16"/></svg>container (469 GB)
+            </a>
+            <a href="https://huggingface.co/thinkingmachines/Inkling" target="_blank" rel="noopener">upstream</a>
+            <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>inkling.c</span>
+          </div>
+          <div class="nex-copy-box">
+            <code>hf download nbeerbower/Inkling-nexdune-int4 --local-dir ~/Models/inkling_i4</code>
+            <button class="nex-copy-btn" type="button">Copy</button>
+          </div>
+        </article>
+
+        <!-- Model 7: Qwen3.8-Flash-Next -->
+        <article class="nex-model-card" data-find="qwen3.8-flash-next qwen38 alibaba qwen38.c moe block-fp8 deltanet ple" data-tags="moe block-fp8 deltanet ple">
+          <div class="nex-card-top">
+            <h3><a href="https://github.com/NiranX-music/Nexdune/blob/main/docs/qwen38.md" target="_blank" rel="noopener">Qwen3.8-Flash-Next</a></h3>
+            <div class="nex-param-badge">
+              <span><strong>180B</strong> total</span> &middot; <span><strong>6B</strong> active</span>
+            </div>
+          </div>
+          <p class="nex-card-desc">48 layers, 512 experts, 10 routed per token. 125B backbone plus a pageable 51B n-gram embedding and 4B MTP head. Native block-FP8 routing.</p>
+          <div class="nex-tag-list">
+            <span class="nex-tag tag-moe">MoE</span>
+            <span class="nex-tag tag-quant">block-FP8</span>
+            <span class="nex-tag tag-feature">DeltaNet</span>
+            <span class="nex-tag tag-feature">PLE</span>
+          </div>
+          <div class="nex-card-meta">
+            <a href="https://huggingface.co/Qwen/Qwen3.8-Flash-Next-FP8" target="_blank" rel="noopener">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 19h16"/></svg>official checkpoint
+            </a>
+            <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>qwen38.c</span>
+          </div>
+          <div class="nex-copy-box">
+            <code>hf download Qwen/Qwen3.8-Flash-Next-FP8 --local-dir ~/Models/Qwen3.8-Flash-Next-FP8</code>
+            <button class="nex-copy-btn" type="button">Copy</button>
+          </div>
+        </article>
+
+        <!-- Model 8: Qwen3.6-35B-A3B -->
+        <article class="nex-model-card" data-find="qwen3.6-35b-a3b qwen36 alibaba qwen36.c moe int4-gs64 deltanet cuda tier" data-tags="moe int4-gs64 deltanet cuda tier">
+          <div class="nex-card-top">
+            <h3><a href="https://github.com/NiranX-music/Nexdune/blob/main/docs/qwen36.md" target="_blank" rel="noopener">Qwen3.6-35B-A3B</a></h3>
+            <div class="nex-param-badge">
+              <span><strong>35B</strong> total</span> &middot; <span><strong>3B</strong> active</span>
+            </div>
+          </div>
+          <p class="nex-card-desc">The absolute best model to start with: 20 GB on disk, gated attention interleaved with gated DeltaNet. Measured 1.44 to 10.05 tok/s on consumer GPUs with bit-identical CPU parity.</p>
+          <div class="nex-tag-list">
+            <span class="nex-tag tag-moe">MoE</span>
+            <span class="nex-tag tag-quant">int4-gs64</span>
+            <span class="nex-tag tag-feature">DeltaNet</span>
+            <span class="nex-tag tag-feature">CUDA tier</span>
+          </div>
+          <div class="nex-card-meta">
+            <a href="https://huggingface.co/Kreuzzelg/qwen36-35b-a3b-nexdune-i4-gs64" target="_blank" rel="noopener">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 19h16"/></svg>container (20 GB)
+            </a>
+            <a href="https://huggingface.co/Qwen/Qwen3.6-35B-A3B" target="_blank" rel="noopener">upstream</a>
+            <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>qwen36.c</span>
+          </div>
+          <div class="nex-copy-box">
+            <code>hf download Kreuzzelg/qwen36-35b-a3b-nexdune-i4-gs64 --local-dir ~/Models/qwen36_i4_gs64</code>
+            <button class="nex-copy-btn" type="button">Copy</button>
+          </div>
+        </article>
+
+        <!-- Model 9: OLMoE -->
+        <article class="nex-model-card" data-find="olmoe 1b-7b allen ai olmoe.c moe int8 open data small" data-tags="moe int8 open data small">
+          <div class="nex-card-top">
+            <h3><a href="https://github.com/NiranX-music/Nexdune/blob/main/docs/quickstart.md" target="_blank" rel="noopener">OLMoE-1B-7B</a></h3>
+            <div class="nex-param-badge">
+              <span><strong>7B</strong> total</span> &middot; <span><strong>1B</strong> active</span>
+            </div>
+          </div>
+          <p class="nex-card-desc">Fully open weights and open training data, 16 layers and 64 experts. The ultra-lightweight testbed: the entire container is only 7 GB.</p>
+          <div class="nex-tag-list">
+            <span class="nex-tag tag-moe">MoE</span>
+            <span class="nex-tag tag-quant">int8</span>
+            <span class="nex-tag tag-feature">Open Data</span>
+            <span class="nex-tag tag-feature">Lightweight</span>
+          </div>
+          <div class="nex-card-meta">
+            <a href="https://huggingface.co/allenai/OLMoE-1B-7B-0125-Instruct" target="_blank" rel="noopener">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 19h16"/></svg>convert (7 GB int8)
+            </a>
+            <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>olmoe.c</span>
+          </div>
+          <div class="nex-copy-box">
+            <code>python3 c/tools/convert_olmoe_merged.py --repo allenai/OLMoE-1B-7B-0125-Instruct --out ~/Models/olmoe_i8</code>
+            <button class="nex-copy-btn" type="button">Copy</button>
+          </div>
+        </article>
+
+      </div>
+      <p class="nex-none-msg" id="nexNoneMsg" hidden>No matching frontier models found.</p>
+    </div>
+  </section>
+
+  <!-- Sticky Rail Deep-Dive Layout Component (nexus-rail-layout) -->
+  <div class="mid-container nexus-rail-layout">
+    <nav class="nexus-sticky-rail" id="nexusRailNav">
+      <div class="nexus-rail-menu">
+        <a href="#nex-memory" class="is-active">Nexus Memory Streaming</a>
+        <a href="#nex-scale">Frontier Model Scale</a>
+        <a href="#nexbrio">NexBrio Decision Engine</a>
+        <a href="#nex-sovereign">NexSovereign Guarantee</a>
+        <a href="#nex-architecture">Nexus Architecture Blueprint</a>
+      </div>
+    </nav>
+
+    <div>
+
+      <!-- Deep Dive 1: Memory Streaming Benchmarks -->
+      <section class="nex-deepdive-block" id="nex-memory">
+        <h2>Bigger than your RAM.<br>Fast as your NVMe.</h2>
+        <p class="block-lead">
+          A mixture-of-experts token touches only a tiny subset of model weights. <strong>NEXDUNE</strong> keeps only the active router paths resident, streaming experts on-demand as token routing fires.
+        </p>
+
+        <div class="nexus-benchmark-chart">
+          <div class="nex-chart-row">
+            <span class="nex-chart-label">6x RTX 5090<small>Full GPU residency</small></span>
+            <span class="nex-track-wrapper"><i class="nex-bar-fill" style="width: 100.0%"></i></span>
+            <span class="nex-chart-value">9.0–9.2 <small>tok/s</small></span>
+          </div>
+          <div class="nex-chart-row">
+            <span class="nex-chart-label">AWS Graviton4<small>aarch64, pure CPU</small></span>
+            <span class="nex-track-wrapper"><i class="nex-bar-fill" style="width: 87.0%"></i></span>
+            <span class="nex-chart-value">8.0 <small>tok/s</small></span>
+          </div>
+          <div class="nex-chart-row">
+            <span class="nex-chart-label">2x Xeon Gold 6430<small>1 TB DDR5 RAM</small></span>
+            <span class="nex-track-wrapper"><i class="nex-bar-fill" style="width: 58.9%"></i></span>
+            <span class="nex-chart-value">5.42 <small>tok/s</small></span>
+          </div>
+          <div class="nex-chart-row">
+            <span class="nex-chart-label">NVIDIA DGX Spark<small>121 GB unified memory</small></span>
+            <span class="nex-track-wrapper"><i class="nex-bar-fill" style="width: 36.2%"></i></span>
+            <span class="nex-chart-value">3.33 <small>tok/s</small></span>
+          </div>
+          <div class="nex-chart-row">
+            <span class="nex-chart-label">MacBook Pro M5 Max<small>Metal GPU acceleration</small></span>
+            <span class="nex-track-wrapper"><i class="nex-bar-fill" style="width: 21.7%"></i></span>
+            <span class="nex-chart-value">2.00 <small>tok/s</small></span>
+          </div>
+          <div class="nex-chart-row">
+            <span class="nex-chart-label">Ryzen 9 9950X3D<small>RTX 5090 + PCIe 5.0 NVMe</small></span>
+            <span class="nex-track-wrapper"><i class="nex-bar-fill" style="width: 13.4%"></i></span>
+            <span class="nex-chart-value">1.23 <small>tok/s</small></span>
+          </div>
+          <div class="nex-chart-row">
+            <span class="nex-chart-label">25 GB Dev Box<small>Standard cold NVMe</small></span>
+            <span class="nex-track-wrapper"><i class="nex-bar-fill bar-muted" style="width: 2.5%"></i></span>
+            <span class="nex-chart-value">0.10 <small>tok/s</small></span>
+          </div>
+        </div>
+        <p class="nex-source-note">
+          Measured on GLM-5.2 int4. Physical hardware determines where experts temporarily stage, never what the model computes.
+        </p>
+        <a class="nex-more-link" href="https://github.com/NiranX-music/Nexdune/blob/main/docs/benchmarks.md" target="_blank" rel="noopener">
+          Inspect full hardware benchmarks &rarr;
+        </a>
+      </section>
+
+      <!-- Deep Dive 2: Frontier Model Scale -->
+      <section class="nex-deepdive-block" id="nex-scale">
+        <h2>Nine Families.<br>Zero Wrapper Overheads.</h2>
+        <p class="block-lead">
+          Every model family runs in a dedicated, hand-crafted C file. Not a sluggish Python binding or an opaque third-party wrapper.
+        </p>
+
+        <div class="nexus-benchmark-chart">
+          <div class="nex-chart-row">
+            <span class="nex-chart-label">Kimi-K3<small>104B active compute</small></span>
+            <span class="nex-track-wrapper"><i class="nex-bar-fill" style="width: 100.0%"></i></span>
+            <span class="nex-chart-value">2,800 B</span>
+          </div>
+          <div class="nex-chart-row">
+            <span class="nex-chart-label">Inkling<small>41B active compute</small></span>
+            <span class="nex-track-wrapper"><i class="nex-bar-fill" style="width: 34.8%"></i></span>
+            <span class="nex-chart-value">975 B</span>
+          </div>
+          <div class="nex-chart-row">
+            <span class="nex-chart-label">GLM-5.2<small>40B active compute</small></span>
+            <span class="nex-track-wrapper"><i class="nex-bar-fill" style="width: 26.6%"></i></span>
+            <span class="nex-chart-value">744 B</span>
+          </div>
+          <div class="nex-chart-row">
+            <span class="nex-chart-label">DeepSeek-V4.1-Flash<small>16B active compute</small></span>
+            <span class="nex-track-wrapper"><i class="nex-bar-fill" style="width: 19.7%"></i></span>
+            <span class="nex-chart-value">552 B</span>
+          </div>
+          <div class="nex-chart-row">
+            <span class="nex-chart-label">GLM-5.3-Flash<small>18B active compute</small></span>
+            <span class="nex-track-wrapper"><i class="nex-bar-fill" style="width: 11.4%"></i></span>
+            <span class="nex-chart-value">320 B</span>
+          </div>
+          <div class="nex-chart-row">
+            <span class="nex-chart-label">DeepSeek-V4-Flash<small>13B active compute</small></span>
+            <span class="nex-track-wrapper"><i class="nex-bar-fill" style="width: 10.1%"></i></span>
+            <span class="nex-chart-value">284 B</span>
+          </div>
+          <div class="nex-chart-row">
+            <span class="nex-chart-label">Qwen3.8-Flash-Next<small>6B active compute</small></span>
+            <span class="nex-track-wrapper"><i class="nex-bar-fill" style="width: 6.4%"></i></span>
+            <span class="nex-chart-value">180 B</span>
+          </div>
+          <div class="nex-chart-row">
+            <span class="nex-chart-label">Qwen3.6-35B-A3B<small>3B active compute</small></span>
+            <span class="nex-track-wrapper"><i class="nex-bar-fill" style="width: 1.25%"></i></span>
+            <span class="nex-chart-value">35 B</span>
+          </div>
+          <div class="nex-chart-row">
+            <span class="nex-chart-label">OLMoE<small>1B active compute</small></span>
+            <span class="nex-track-wrapper"><i class="nex-bar-fill" style="width: 0.8%"></i></span>
+            <span class="nex-chart-value">7 B</span>
+          </div>
+        </div>
+        <p class="nex-source-note">
+          Only the active parameters execute per token. The C engines: <code>nexdune.c</code>, <code>glm53.c</code>, <code>inkling.c</code>, <code>kimi_k3.c</code>, <code>olmoe.c</code>, <code>qwen36.c</code>, <code>qwen38.c</code>, <code>deepseek_v4.c</code>, <code>deepseek_v41.c</code>.
+        </p>
+      </section>
+
+      <!-- Deep Dive 3: NexBrio Decision Mode -->
+      <section class="nex-deepdive-block" id="nexbrio">
+        <h2>NexBrio Deterministic Mode.<br>Decisions Instead of Hallucinations.</h2>
+        <p class="block-lead">
+          Real enterprise tasks require a definitive choice, not a wordy hallucinated essay. Feed <strong>NexBrio</strong> valid candidate options and it returns exact token probabilities and mathematical entropy. Zero generation overhead, zero parser breakage.
+        </p>
+
+        <!-- Speed comparison chart -->
+        <div class="nexus-benchmark-chart">
+          <div class="nex-chart-row">
+            <span class="nex-chart-label">One Question, 10 Options<small>NexBrio</small></span>
+            <span class="nex-track-wrapper"><i class="nex-bar-fill" style="width: 38.8%"></i></span>
+            <span class="nex-chart-value">101.2 s</span>
+          </div>
+          <div class="nex-chart-row">
+            <span class="nex-chart-label"><small>Standard Chat Generation</small></span>
+            <span class="nex-track-wrapper"><i class="nex-bar-fill bar-muted" style="width: 48.1%"></i></span>
+            <span class="nex-chart-value">125.6 s <small>(1.2x slower)</small></span>
+          </div>
+          <div class="nex-chart-row">
+            <span class="nex-chart-label">JSON 4-Field Schema<small>NexBrio</small></span>
+            <span class="nex-track-wrapper"><i class="nex-bar-fill" style="width: 39.8%"></i></span>
+            <span class="nex-chart-value">103.8 s</span>
+          </div>
+          <div class="nex-chart-row">
+            <span class="nex-chart-label"><small>Standard Chat Generation</small></span>
+            <span class="nex-track-wrapper"><i class="nex-bar-fill bar-muted" style="width: 94.2%"></i></span>
+            <span class="nex-chart-value">246.0 s <small>(2.4x slower)</small></span>
+          </div>
+          <div class="nex-chart-row">
+            <span class="nex-chart-label">4 Items, Shared Instructions<small>NexBrio</small></span>
+            <span class="nex-track-wrapper"><i class="nex-bar-fill" style="width: 17.5%"></i></span>
+            <span class="nex-chart-value">45.7 s</span>
+          </div>
+          <div class="nex-chart-row">
+            <span class="nex-chart-label"><small>Standard Chat Generation</small></span>
+            <span class="nex-track-wrapper"><i class="nex-bar-fill bar-muted" style="width: 100.0%"></i></span>
+            <span class="nex-chart-value">261.1 s <small>(5.7x slower)</small></span>
+          </div>
+        </div>
+
+        <!-- 3 Feature Cards -->
+        <div class="nexbrio-grid">
+          <div class="nexbrio-card">
+            <h3>Triage &amp; Routing</h3>
+            <p>Direct ticket routing, automated review verdicts, and instant categorization with guaranteed bounded choices.</p>
+            <div class="nexbrio-io">
+              <strong>question:</strong> What should reviewer do?<br>
+              <strong>options:</strong> merge &middot; request changes &middot; close
+            </div>
+          </div>
+          <div class="nexbrio-card">
+            <h3>Strict Schema Filling</h3>
+            <p>Every field slot evaluated against permitted enums. Zero hallucinated keys, zero malformed JSON braces.</p>
+            <div class="nexbrio-io">
+              <strong>NexBrio:</strong> strictly verified slots<br>
+              <strong>Chat:</strong> invented non-existent attributes
+            </div>
+          </div>
+          <div class="nexbrio-card">
+            <h3>Multi-Query Context</h3>
+            <p>Parse extensive contracts once, query dozens of categorical points with zero re-ingestion latency.</p>
+            <div class="nexbrio-io">
+              <strong>one snapshot:</strong> 496 tokens for 4 queries<br>
+              <strong>two levels:</strong> 176 tokens total
+            </div>
+          </div>
+        </div>
+
+        <!-- Interactive Sandbox Widget -->
+        <div class="nexbrio-interactive-sandbox">
+          <div class="sandbox-label">Interactive NexBrio Live Protocol Simulator</div>
+          <div class="sandbox-tabs">
+            <button class="sandbox-tab-btn active" data-scenario="pr">Pull Request Review</button>
+            <button class="sandbox-tab-btn" data-scenario="schema">JSON Schema Validator</button>
+            <button class="sandbox-tab-btn" data-scenario="contract">Compliance Audit</button>
+          </div>
+          <div class="sandbox-content">
+            <div class="sandbox-pane">
+              <div class="sandbox-label">HTTP POST /v1/nexbrio</div>
+              <pre id="sandboxPayload" style="font-family: var(--font-mono); font-size: 12px; color: #cbd5e1; line-height: 1.6;"></pre>
+            </div>
+            <div class="sandbox-pane">
+              <div class="sandbox-label">Deterministic Response (0 Tokens Generated)</div>
+              <pre id="sandboxResponse" style="font-family: var(--font-mono); font-size: 12px; color: #cbd5e1; line-height: 1.6;"></pre>
+            </div>
+          </div>
+        </div>
+
+        <!-- Entropy Uncertainty Meter -->
+        <div style="margin-top: 2.5rem;">
+          <h3 style="font-family: var(--font-display); font-size: 1.35rem; font-weight: 700; color: var(--fg-main); margin-bottom: 0.6rem;">
+            Quantified Model Confidence via Entropy
+          </h3>
+          <p class="block-lead" style="margin-bottom: 1.5rem; font-size: 1rem;">
+            When NexBrio evaluates choices, it outputs an exact mathematical entropy score. If confidence is high, score is near 0. If uncertain, entropy spikes — triggering automatic fallback to human-in-the-loop.
+          </p>
+          <div class="nexus-benchmark-chart">
+            <div class="nex-chart-row">
+              <span class="nex-chart-label">target_module<small>High certainty</small></span>
+              <span class="nex-track-wrapper"><i class="nex-bar-fill" style="width: 94.4%"></i></span>
+              <span class="nex-chart-value">94.4% <small>(entropy 0.17)</small></span>
+            </div>
+            <div class="nex-chart-row">
+              <span class="nex-chart-label">needs_tests<small>Moderate uncertainty</small></span>
+              <span class="nex-track-wrapper"><i class="nex-bar-fill bar-muted" style="width: 52.0%"></i></span>
+              <span class="nex-chart-value">52.0% <small>(entropy 0.95)</small></span>
+            </div>
+            <div class="nex-chart-row">
+              <span class="nex-chart-label">security_risk<small>High uncertainty</small></span>
+              <span class="nex-track-wrapper"><i class="nex-bar-fill bar-muted" style="width: 46.0%"></i></span>
+              <span class="nex-chart-value">46.0% <small>(entropy 0.99)</small></span>
+            </div>
+          </div>
+        </div>
+        <a class="nex-more-link" href="https://github.com/NiranX-music/Nexdune/blob/main/docs/brio.md" target="_blank" rel="noopener">
+          Read full NexBrio protocol guide &rarr;
+        </a>
+      </section>
+
+      <!-- Deep Dive 4: NexSovereign Guarantee -->
+      <section class="nex-deepdive-block" id="nex-sovereign">
+        <h2>The NexSovereign Protocol.<br>Your Weights Stay Yours.</h2>
+        <p class="block-lead">
+          The Nexus engine is a single C file per model with zero runtime and zero external telemetry. Disconnect Wi-Fi, pull the Ethernet cable: your weights, prompts, and tokens never touch the cloud.
+        </p>
+
+        <table class="nexus-table">
+          <thead>
+            <tr>
+              <th>Pillar Guarantee</th>
+              <th>Nexdune Implementation</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="pillar-name">Weight Ownership</td>
+              <td class="pillar-desc">Stored directly on your local NVMe storage in transparent binary or safetensors formats you can read.</td>
+            </tr>
+            <tr>
+              <td class="pillar-name">Air-Gapped Telemetry</td>
+              <td class="pillar-desc">Zero tracking, zero phoning home. Fully functional in offline air-gapped secure enclaves.</td>
+            </tr>
+            <tr>
+              <td class="pillar-name">Auditable Simplicity</td>
+              <td class="pillar-desc">Single standalone C file per architecture. Read the whole inference kernel in a single afternoon.</td>
+            </tr>
+            <tr>
+              <td class="pillar-name">Token Determinism</td>
+              <td class="pillar-desc">Bit-for-bit token exact against PyTorch reference implementations on CPU, CUDA, Metal, and Vulkan.</td>
+            </tr>
+          </tbody>
+        </table>
+        <a class="nex-more-link" href="https://github.com/NiranX-music/Nexdune" target="_blank" rel="noopener">
+          Audit the C engine repository &rarr;
+        </a>
+      </section>
+
+      <!-- Deep Dive 5: Architecture Blueprint -->
+      <section class="nex-deepdive-block" id="nex-architecture">
+        <h2>Nexus Streaming Architecture.</h2>
+        <p class="block-lead">
+          How Nexdune computes 2.8 Trillion parameter MoE networks on consumer hardware with zero RAM exhaustion.
+        </p>
+
+        <div class="nexus-blueprint-box">
+          <div class="sandbox-label">Zero-Copy Paged Memory Pipeline</div>
+          <div class="blueprint-flow">
+            <div class="blueprint-node">
+              <div class="blueprint-step-num">STAGE 01</div>
+              <h4>NVMe Chunk Shards</h4>
+              <p>Model weights stored in memory-mapped pages on SSD. Cold experts remain at rest.</p>
+            </div>
+            <div class="blueprint-node">
+              <div class="blueprint-step-num">STAGE 02</div>
+              <h4>Sparse Router</h4>
+              <p>Dense backbone calculates top-k expert indices dynamically per token.</p>
+            </div>
+            <div class="blueprint-node">
+              <div class="blueprint-step-num">STAGE 03</div>
+              <h4>NexStream Direct I/O</h4>
+              <p>OS page-fault or prefetch ring pulls only selected expert blocks into L2/L3 cache.</p>
+            </div>
+            <div class="blueprint-node">
+              <div class="blueprint-step-num">STAGE 04</div>
+              <h4>SIMD / GPU Kernel</h4>
+              <p>Pure C AVX-512, NEON, CUDA, Metal, or Vulkan kernels compute token activations.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- CLI Quickstart Tabbed Block -->
+        <div class="nexus-cli-section">
+          <div class="cli-tabs-nav">
+            <button class="cli-tab-btn active" data-tab="win">Windows</button>
+            <button class="cli-tab-btn" data-tab="linux">Linux / WSL</button>
+            <button class="cli-tab-btn" data-tab="mac">macOS Metal</button>
+            <button class="cli-tab-btn" data-tab="python">Python API</button>
+          </div>
+          <div id="cliTabContent" style="font-family: var(--font-mono); font-size: 13px; line-height: 1.7; color: var(--fg-main);">
+            <div class="cli-pane" id="pane-win">
+              <p style="color: var(--fg-dim); margin-bottom: 0.5rem;"># Quickstart on Windows with batch helper:</p>
+              <code>Nexdune\c\nexdune.cmd chat --model models\olmoe-nexdune</code><br><br>
+              <p style="color: var(--fg-dim); margin-bottom: 0.5rem;"># Launch local Web UI dashboard:</p>
+              <code>Nexdune\c\nexdune.cmd web --model models\olmoe-nexdune --port 8080</code>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+  <!-- Closing Monolith Call-To-Action (nexus-closing) -->
+  <section class="nexus-closing-section">
+    <div class="wide-container">
+      <svg class="nexus-closing-monolith" viewBox="0 0 512 512" fill="none" aria-hidden="true">
+        <rect width="512" height="512" rx="112" fill="#0d121c"/>
+        <rect width="510" height="510" x="1" y="1" rx="111" stroke="#00f2fe" stroke-width="2" stroke-opacity="0.3"/>
+        <circle cx="256" cy="256" r="140" fill="#00f2fe" fill-opacity="0.12"/>
+        <path d="M128 376V156C128 142.745 138.745 132 152 132H184C197.255 132 208 142.745 208 156V376C208 389.255 197.255 400 184 400H152C138.745 400 128 389.255 128 376Z" fill="#00f2fe"/>
+        <path d="M304 376V156C304 142.745 314.745 132 328 132H360C373.255 132 384 142.745 384 156V376C384 389.255 373.255 400 360 400H328C314.745 400 304 389.255 304 376Z" fill="#00f2fe"/>
+        <path d="M184 144L328 356C335 366.5 348 370 358 363L366 357C376 350 378 337 371 326.5L227 114C220 103.5 207 100 197 107L189 113C179 120 177 133 184 144Z" fill="#f59e0b"/>
+        <circle cx="256" cy="235" r="14" fill="#ffffff"/>
+      </svg>
+      <h2>Run Frontier AI Locally.<br>On Hardware You Already Own.</h2>
+      <p>Engineered by NiranX. Pure C. Zero external runtimes. Complete data autonomy.</p>
+      <div style="display: flex; gap: 0.9rem; justify-content: center; flex-wrap: wrap;">
+        <a class="nex-pill btn-primary btn-large" href="https://github.com/NiranX-music/Nexdune/blob/main/docs/quickstart.md" target="_blank" rel="noopener">Get Started with Nexdune</a>
+        <a class="nex-pill btn-ghost btn-large" href="https://github.com/NiranX-music/Nexdune" target="_blank" rel="noopener">View GitHub Repository</a>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- Footer Component (nexus-footer) -->
+<footer class="nexus-footer">
+  <div class="nexus-footer-inner">
+    <div class="nexus-footer-brand">
+      <span>&copy; 2026 NEXDUNE</span>
+      <span>&middot;</span>
+      <span>Engineered by <strong>NiranX</strong></span>
+      <span>&middot;</span>
+      <span>Release <strong>v1.12.1</strong></span>
+    </div>
+    <div class="nexus-footer-links">
+      <a href="https://github.com/NiranX-music/Nexdune" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://github.com/NiranX-music/Nexdune/blob/main/docs/quickstart.md" target="_blank" rel="noopener">Quickstart</a>
+      <a href="https://github.com/NiranX-music/Nexdune/blob/main/docs/brio.md" target="_blank" rel="noopener">NexBrio</a>
+      <a href="https://github.com/NiranX-music/Nexdune/blob/main/docs/api.md" target="_blank" rel="noopener">API Spec</a>
+      <a href="https://github.com/NiranX-music/Nexdune/blob/main/docs/benchmarks.md" target="_blank" rel="noopener">Benchmarks</a>
+      <a href="https://github.com/NiranX-music/Nexdune/blob/main/LICENSE" target="_blank" rel="noopener">Apache 2.0</a>
+    </div>
+  </div>
+</footer>
+
+<!-- Toast Feedback -->
+<div class="nex-toast" id="nexToast">Command copied to clipboard</div>
+
+<!-- Interactive Engine Logic -->
+<script>
+(function(){
+  // Elements
+  var searchInput = document.getElementById("nexSearchInput");
+  var modelList = document.getElementById("nexModelList");
+  var noneMsg = document.getElementById("nexNoneMsg");
+  var filterButtons = document.querySelectorAll(".nex-filter-btn");
+  var toast = document.getElementById("nexToast");
+  var currentTag = "all";
+
+  // Filter & Search Engine
+  function runFilter() {
+    var query = (searchInput.value || "").trim().toLowerCase();
+    var cards = modelList.querySelectorAll(".nex-model-card");
+    var visibleCount = 0;
+
+    cards.forEach(function(card) {
+      var findText = (card.getAttribute("data-find") || "").toLowerCase();
+      var cardTags = (card.getAttribute("data-tags") || "").toLowerCase();
+
+      var matchesQuery = !query || findText.indexOf(query) !== -1;
+      var matchesTag = (currentTag === "all") || (cardTags.indexOf(currentTag) !== -1);
+
+      if (matchesQuery && matchesTag) {
+        card.style.display = "block";
+        visibleCount++;
+      } else {
+        card.style.display = "none";
+      }
+    });
+
+    noneMsg.hidden = visibleCount > 0;
+  }
+
+  if (searchInput) {
+    searchInput.addEventListener("input", function() {
+      runFilter();
+      if (searchInput.value.trim().length > 0) {
+        var fleetEl = document.getElementById("nexus-fleet");
+        if (fleetEl && window.scrollY > fleetEl.offsetTop + 100) {
+          fleetEl.scrollIntoView({ behavior: "smooth" });
+        }
+      }
+    });
+  }
+
+  filterButtons.forEach(function(btn) {
+    btn.addEventListener("click", function() {
+      filterButtons.forEach(function(b) { b.classList.remove("active"); });
+      btn.classList.add("active");
+      currentTag = btn.getAttribute("data-filter") || "all";
+      runFilter();
+    });
+  });
+
+  // Copy buttons with Toast
+  function showToast(msg) {
+    if (!toast) return;
+    toast.textContent = msg || "Copied to clipboard";
+    toast.classList.add("show");
+    setTimeout(function(){ toast.classList.remove("show"); }, 2000);
+  }
+
+  document.querySelectorAll(".nex-copy-btn").forEach(function(btn) {
+    btn.addEventListener("click", function() {
+      var codeElem = btn.parentElement.querySelector("code");
+      if (codeElem) {
+        var text = codeElem.textContent.trim();
+        navigator.clipboard.writeText(text).then(function() {
+          var original = btn.textContent;
+          btn.textContent = "Copied!";
+          showToast("Command copied to clipboard");
+          setTimeout(function(){ btn.textContent = original; }, 1400);
+        });
+      }
+    });
+  });
+
+  // Sticky Rail ScrollSpy
+  var railLinks = document.querySelectorAll("#nexusRailNav a");
+  var sections = Array.from(railLinks).map(function(link) {
+    var id = link.getAttribute("href");
+    return id ? document.querySelector(id) : null;
+  });
+
+  function updateScrollSpy() {
+    var scrollPos = window.scrollY + 220;
+    var activeIdx = 0;
+    sections.forEach(function(sec, idx) {
+      if (sec && sec.offsetTop <= scrollPos) {
+        activeIdx = idx;
+      }
+    });
+    railLinks.forEach(function(link, idx) {
+      link.classList.toggle("is-active", idx === activeIdx);
+    });
+  }
+  window.addEventListener("scroll", updateScrollSpy, { passive: true });
+  updateScrollSpy();
+
+  // Dark/Light Theme Switcher with Keyboard 'D'
+  var themeBtn = document.getElementById("nexThemeBtn");
+  function applyTheme(theme, save) {
+    document.documentElement.classList.add("theme-transition");
+    document.documentElement.setAttribute("data-theme", theme);
+    if (save) {
+      try { localStorage.setItem("nexdune_theme", theme); } catch(e){}
+    }
+    setTimeout(function(){
+      document.documentElement.classList.remove("theme-transition");
+    }, 250);
+  }
+
+  function toggleTheme() {
+    var cur = document.documentElement.getAttribute("data-theme") || "dark";
+    applyTheme(cur === "dark" ? "light" : "dark", true);
+  }
+
+  if (themeBtn) themeBtn.addEventListener("click", toggleTheme);
+
+  window.addEventListener("keydown", function(e) {
+    var tag = (document.activeElement || {}).tagName;
+    if ((e.key === "d" || e.key === "D") && ["INPUT","TEXTAREA","SELECT"].indexOf(tag) < 0 && !e.metaKey && !e.ctrlKey && !e.altKey) {
+      e.preventDefault();
+      toggleTheme();
+    }
+  });
+
+  // NexBrio Interactive Simulator
+  var scenarios = {
+    pr: {
+      req: '{\n  "model": "qwen36",\n  "state": "340 lines, 8 files, 0 test coverage.",\n  "question": "What should the reviewer do?",\n  "options": ["merge", "request changes", "close"]\n}',
+      res: '{\n  "answer": "request changes",\n  "entropy": 0.121,\n  "choices": [\n    {"option": "request changes", "p": 0.974},\n    {"option": "merge",           "p": 0.023},\n    {"option": "close",           "p": 0.004}\n  ],\n  "usage": {"completion_tokens": 0}\n}'
+    },
+    schema: {
+      req: '{\n  "model": "qwen36",\n  "state": "User order #9421 processed with valid token.",\n  "question": "Determine status slot",\n  "options": ["APPROVED", "DENIED", "FLAGGED"]\n}',
+      res: '{\n  "answer": "APPROVED",\n  "entropy": 0.048,\n  "choices": [\n    {"option": "APPROVED", "p": 0.991},\n    {"option": "FLAGGED",  "p": 0.007},\n    {"option": "DENIED",   "p": 0.002}\n  ],\n  "usage": {"completion_tokens": 0}\n}'
+    },
+    contract: {
+      req: '{\n  "model": "qwen36",\n  "state": "Clause 14.2: Termination requires 30-day written notice.",\n  "question": "Is early unilateral termination allowed?",\n  "options": ["yes_without_penalty", "conditional_notice", "forbidden"]\n}',
+      res: '{\n  "answer": "conditional_notice",\n  "entropy": 0.082,\n  "choices": [\n    {"option": "conditional_notice",   "p": 0.985},\n    {"option": "forbidden",            "p": 0.012},\n    {"option": "yes_without_penalty",  "p": 0.003}\n  ],\n  "usage": {"completion_tokens": 0}\n}'
+    }
+  };
+
+  var payloadBox = document.getElementById("sandboxPayload");
+  var responseBox = document.getElementById("sandboxResponse");
+  var scenarioButtons = document.querySelectorAll(".sandbox-tab-btn");
+
+  function loadScenario(name) {
+    var data = scenarios[name] || scenarios.pr;
+    if (payloadBox) payloadBox.textContent = data.req;
+    if (responseBox) responseBox.textContent = data.res;
+  }
+  loadScenario("pr");
+
+  scenarioButtons.forEach(function(btn) {
+    btn.addEventListener("click", function() {
+      scenarioButtons.forEach(function(b) { b.classList.remove("active"); });
+      btn.classList.add("active");
+      loadScenario(btn.getAttribute("data-scenario") || "pr");
+    });
+  });
+
+  // CLI Tabs
+  var cliTabs = {
+    win: '<p style="color:var(--fg-dim);margin-bottom:0.4rem;"># Windows Command Prompt or PowerShell:</p><code>Nexdune\\c\\nexdune.cmd chat --model models\\olmoe-nexdune</code><br><br><p style="color:var(--fg-dim);margin-bottom:0.4rem;"># Launch local Web UI:</p><code>Nexdune\\c\\nexdune.cmd web --model models\\olmoe-nexdune --port 8080</code>',
+    linux: '<p style="color:var(--fg-dim);margin-bottom:0.4rem;"># Linux / WSL build and chat:</p><code>make -C c nexdune-cli<br>./c/nexdune chat --model ~/Models/olmoe_i8</code><br><br><p style="color:var(--fg-dim);margin-bottom:0.4rem;"># Run local API daemon:</p><code>./c/nexdune serve --model ~/Models/olmoe_i8 --port 8080</code>',
+    mac: '<p style="color:var(--fg-dim);margin-bottom:0.4rem;"># macOS Metal acceleration:</p><code>make -C c METAL=1<br>./c/nexdune chat --model ~/Models/olmoe_i8</code>',
+    python: '<p style="color:var(--fg-dim);margin-bottom:0.4rem;"># Python OpenAI-compatible or NexBrio client:</p><code>import requests<br>r = requests.post("http://localhost:8080/v1/nexbrio", json={<br>  "model": "olmoe", "state": "PR #12", "question": "Triage", "options": ["merge", "close"]<br>})<br>print(r.json())</code>'
+  };
+
+  var cliContainer = document.getElementById("cliTabContent");
+  var cliButtons = document.querySelectorAll(".cli-tab-btn");
+
+  cliButtons.forEach(function(btn) {
+    btn.addEventListener("click", function() {
+      cliButtons.forEach(function(b) { b.classList.remove("active"); });
+      btn.classList.add("active");
+      var key = btn.getAttribute("data-tab") || "win";
+      if (cliContainer) {
+        cliContainer.innerHTML = cliTabs[key] || cliTabs.win;
+      }
+    });
+  });
+
+})();
+</script>
+
+</body>
+</html>

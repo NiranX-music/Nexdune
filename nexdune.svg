@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="680" height="150" viewBox="0 0 680 150" fill="none">
+  <defs>
+    <linearGradient id="nex-banner-grad" x1="20" y1="20" x2="140" y2="130" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#00f2fe"/>
+      <stop offset="60%" stop-color="#3b82f6"/>
+      <stop offset="100%" stop-color="#6366f1"/>
+    </linearGradient>
+    <linearGradient id="nex-accent-grad" x1="40" y1="120" x2="120" y2="30" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#00f2fe"/>
+    </linearGradient>
+    <linearGradient id="nex-text-grad" x1="170" y1="40" x2="450" y2="90" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#94a3b8"/>
+    </linearGradient>
+    <filter id="nex-banner-glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+
+  <!-- Nexus Emblem Icon -->
+  <g transform="translate(15, 15)">
+    <!-- Base Plate -->
+    <rect width="120" height="120" rx="26" fill="#0c1017" stroke="#1e293b" stroke-width="1.5"/>
+    <circle cx="60" cy="60" r="42" fill="#00f2fe" fill-opacity="0.12" filter="blur(10px)"/>
+
+    <!-- Left Pillar -->
+    <path d="M34 88V32C34 29 36 27 39 27H45C48 27 50 29 50 32V88C50 91 48 93 45 93H39C36 93 34 91 34 88Z" fill="url(#nex-banner-grad)"/>
+
+    <!-- Right Pillar -->
+    <path d="M70 88V32C70 29 72 27 75 27H81C84 27 86 29 86 32V88C86 91 84 93 81 93H75C72 93 70 91 70 88Z" fill="url(#nex-banner-grad)"/>
+
+    <!-- Dynamic Diagonal Router -->
+    <path d="M46 29L75 84C77 87 81 88 84 86L86 85C89 83 90 79 88 76L59 21C57 18 53 17 50 19L48 20C45 22 44 26 46 29Z" fill="url(#nex-accent-grad)"/>
+
+    <!-- Convergence Core -->
+    <circle cx="60" cy="55" r="4.5" fill="#ffffff" filter="drop-shadow(0 0 6px #00f2fe)"/>
+
+    <!-- Bottom Dune Wave -->
+    <path d="M28 100C48 93 74 107 92 100" stroke="url(#nex-accent-grad)" stroke-width="2.5" stroke-linecap="round" stroke-opacity="0.8"/>
+  </g>
+
+  <!-- Brand Typography -->
+  <g transform="translate(160, 0)">
+    <text x="0" y="68" font-family="'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="46" font-weight="800" letter-spacing="-0.03em" fill="url(#nex-text-grad)">NEXDUNE</text>
+    <rect x="228" y="38" width="82" height="22" rx="6" fill="#00f2fe" fill-opacity="0.12" stroke="#00f2fe" stroke-width="1" stroke-opacity="0.4"/>
+    <text x="269" y="53" text-anchor="middle" font-family="'JetBrains Mono', monospace" font-size="10.5" font-weight="700" fill="#00f2fe" letter-spacing="0.08em">ENGINE C</text>
+    
+    <text x="0" y="98" font-family="'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="16" font-weight="500" fill="#38bdf8" letter-spacing="-0.01em">Zero-RAM Frontier MoE Streaming &amp; Deterministic Eval Engine</text>
+    <text x="0" y="122" font-family="'JetBrains Mono', monospace" font-size="12.5" font-weight="400" fill="#64748b">Engineered by NiranX &#183; Up to 2.8T Parameters &#183; Pure C &#183; Zero Dependencies</text>
+  </g>
+</svg>
