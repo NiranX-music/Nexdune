@@ -190,3 +190,30 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   .prof-tiles { grid-template-columns: 1fr 1fr; }
   .prof-charts { grid-template-columns: 1fr; }
 }
+
+/* ── KaTeX math rendering ───────────────────────────────────────────────── */
+.md-math-display {
+  display: block;
+  overflow-x: auto;
+  padding: 0.75rem 0;
+  text-align: center;
+}
+.md-math-inline {
+  display: inline;
+  vertical-align: middle;
+}
+.md-math-error {
+  font-family: ui-monospace, monospace;
+  font-size: 0.8em;
+  color: #f87171;
+  background: rgba(248, 113, 113, 0.1);
+  border: 1px solid rgba(248, 113, 113, 0.25);
+  border-radius: 4px;
+  padding: 0.1em 0.4em;
+}
+.katex-display {
+  margin: 0.5em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.katex { font-size: 1.05em; }
