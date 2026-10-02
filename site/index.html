@@ -1,0 +1,579 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1280">
+<title>nexdune</title>
+<meta name="description" content="Run frontier open models on hardware you already own. A dependency-free C engine that streams mixture-of-experts weights from disk.">
+<meta property="og:title" content="nexdune">
+<meta property="og:description" content="Run frontier open models on hardware you already own. Nine families, up to 2.8T parameters, pure C, zero dependencies.">
+<meta property="og:type" content="website">
+<link rel="icon" type="image/svg+xml" href="nexdune-icon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bytesized&family=Figtree:wght@400;500;600&display=swap" rel="stylesheet">
+<script>
+/* Theme picked before first paint, so it never flashes. Mechanism from
+   sparshsingh12312's PR #1551: same localStorage key, same data-theme
+   attribute, same "D" shortcut. */
+(function(){
+  try{
+    var saved=localStorage.getItem('nexdune_theme');
+    var prefersDark=window.matchMedia('(prefers-color-scheme: dark)').matches;
+    document.documentElement.setAttribute('data-theme', saved ? saved : (prefersDark?'dark':'light'));
+  }catch(e){}
+})();
+</script>
+<style>
+:root{
+  --fg:#000; --body:#262626; --dim:#737373; --faint:#a3a3a3;
+  --line:#e5e5e5; --soft:#f5f5f5; --softer:#fafafa;
+  --sys:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --sans:'Figtree',var(--sys);
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{background:#fff;color:var(--fg);font:400 16px/1.5 var(--sans);-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+.wide{max-width:80rem;margin:0 auto;padding:0 2rem}
+.mid{max-width:64rem;margin:0 auto;padding:0 2rem}
+.narrow{max-width:42rem;margin:0 auto;padding:0 1.5rem}
+
+/* header */
+header{position:sticky;top:0;z-index:40;background:#fff}
+.hin{display:flex;align-items:center;gap:1.5rem;height:4rem;max-width:90rem;margin:0 auto;padding:0 1.5rem}
+.brand{display:flex;align-items:center;gap:.55rem;flex:none}
+.brand svg{width:30px;height:27px;display:block}
+.brand b{font-family:'Bytesized',var(--sans);font-weight:400;font-size:1.7rem;line-height:1;text-transform:uppercase;letter-spacing:.03em}
+.hnav{display:flex;gap:1.5rem;font-size:1rem;font-weight:500;flex:none}
+.hnav a:hover{color:var(--dim)}
+.hsearch{flex:1;max-width:38rem;margin:0 auto;display:flex;align-items:center;gap:.5rem;
+  background:var(--soft);border-radius:9999px;padding:.6rem 1rem}
+.hsearch svg{width:16px;height:16px;color:var(--dim);flex:none}
+.hsearch input{flex:1;border:0;outline:0;background:none;font:400 14px var(--sans);color:var(--fg)}
+.hsearch input::placeholder{color:var(--dim)}
+.hright{display:flex;align-items:center;gap:.55rem;flex:none}
+.pill{border-radius:9999px;padding:.6rem 1.15rem;font-size:15px;font-weight:500;display:inline-block}
+.pill.g{background:var(--soft)} .pill.g:hover{background:#ececec}
+.pill.d{background:#171717;color:#fff} .pill.d:hover{background:#000}
+.pill.big{padding:.85rem 1.7rem;font-size:16px}
+
+/* hero */
+.hero{padding:5rem 0 3.5rem}
+.hgrid{display:grid;grid-template-columns:1.05fr .95fr;gap:3.5rem;align-items:center}
+.hero h1{font-size:4.25rem;line-height:1.04;font-weight:500;letter-spacing:-.035em;margin-bottom:1.5rem}
+.hero .sub{font-size:1.2rem;line-height:1.55;color:var(--dim);max-width:31rem;margin-bottom:2rem}
+.hcta{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap}
+.shot{margin:0}
+.shot video{display:block;width:100%;height:auto;border:1px solid var(--line);border-radius:12px;background:#0f1113}
+.shot figcaption{margin-top:.7rem;font-size:13.5px;line-height:1.5;color:var(--dim);max-width:34rem}
+.shot figcaption code{font:400 12.5px var(--mono);background:var(--soft);border-radius:4px;padding:1px 5px}
+.trust{text-align:center;color:var(--dim);font-size:.95rem;padding:1.5rem 0 1.4rem}
+.logos{display:flex;justify-content:center;gap:2.8rem;flex-wrap:wrap;color:#c8c8c8;
+  font-size:1rem;font-weight:600;letter-spacing:-.01em;padding-bottom:5.5rem}
+
+/* rail sections */
+.rail{display:grid;grid-template-columns:15rem 1fr;gap:4rem;align-items:start;padding-bottom:6rem}
+.railnav{position:sticky;top:6rem}
+.railnav a{display:block;padding:.85rem 0;border-bottom:1px solid var(--line);color:var(--faint);font-size:1.05rem}
+.railnav a:first-child{border-top:1px solid var(--line)}
+.railnav a:hover{color:var(--dim)}
+.railnav a.on{color:var(--fg);border-bottom:2px solid var(--fg)}
+.block{padding:0 0 6.5rem}
+.block h2{font-size:2.6rem;font-weight:500;letter-spacing:-.03em;line-height:1.1;margin-bottom:1rem}
+.block .sub{font-size:1.1rem;line-height:1.55;color:var(--dim);max-width:38rem;margin-bottom:2.5rem}
+.src{color:var(--faint);font-size:.9rem;margin-top:1.4rem}
+.more{display:inline-block;margin-top:1.6rem;color:var(--dim);font-size:1rem;
+  border-bottom:1px solid var(--line);padding-bottom:2px}
+.more:hover{color:var(--fg);border-color:var(--fg)}
+
+/* bar chart, their shape: label, black bar, right-aligned number */
+.chart{display:grid;gap:.55rem}
+.crow{display:grid;grid-template-columns:16.5rem 1fr auto;align-items:center;gap:1.2rem;font-size:15px}
+.crow .cl{color:var(--fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.crow .cl s{text-decoration:none;color:var(--faint);font-size:13.5px;margin-left:.45rem}
+.ct{height:14px;background:var(--soft);border-radius:2px}
+.ct i{display:block;height:100%;background:#171717;border-radius:2px}
+.ct.lite i{background:#d4d4d4}
+.crow .cv{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;min-width:5.5rem}
+.crow .cv s{text-decoration:none;color:var(--faint);font-size:13.5px}
+.axis{display:grid;grid-template-columns:16.5rem 1fr auto;gap:1.2rem;margin-top:.4rem;font-size:13px;color:var(--faint)}
+.axis .cv{min-width:5.5rem}
+
+/* two-column compare table */
+.cmp{width:100%;border-collapse:collapse;font-size:15px;margin-top:.3rem}
+.cmp th{text-align:left;font-weight:400;color:var(--faint);font-size:13.5px;padding:0 1rem .7rem 0}
+.cmp th:last-child,.cmp td:last-child{text-align:right}
+.cmp td{padding:.85rem 1rem .85rem 0;border-top:1px solid var(--line);vertical-align:baseline}
+.cmp td.b{font-weight:500}
+.cmp td.x{color:var(--faint)}
+
+/* example cards */
+.exs{display:grid;grid-template-columns:repeat(3,1fr);gap:1.5rem;margin-top:2rem}
+.ex h3{font-size:1.05rem;font-weight:600;margin-bottom:.4rem}
+.ex p{color:var(--dim);font-size:.95rem;line-height:1.55}
+.ex .io{margin-top:.9rem;font:400 12.5px/1.9 var(--mono);color:var(--body);
+  background:var(--softer);border:1px solid var(--line);border-radius:8px;padding:.7rem .8rem}
+.ex .io b{color:var(--faint);font-weight:400}
+.code{background:#0a0a0a;color:#ededed;border-radius:12px;padding:1.2rem 1.4rem;
+  font:400 12px/1.8 var(--mono);margin-top:2rem}
+
+.code pre{white-space:pre-wrap;word-break:break-word}
+.code .lbl{display:block;color:#737373;font-size:11px;letter-spacing:.08em;text-transform:uppercase;margin-bottom:.7rem}
+.code .s{color:#7dd3c0} .code .n{color:#e5a663} .code .k{color:#c4a1e8}
+.split2{display:grid;grid-template-columns:1fr 1fr;gap:1.6rem}
+
+/* models list */
+.msec{padding:1rem 0 6rem}
+.msec h2{font-size:2.6rem;font-weight:500;letter-spacing:-.03em;margin-bottom:.6rem}
+.msec .sub{color:var(--dim);font-size:1.05rem;margin-bottom:1.8rem;max-width:38rem}
+.fbar{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-bottom:.5rem}
+.fp{font:400 14px var(--sans);color:var(--fg);background:#fff;border:1px solid var(--line);
+  border-radius:9999px;padding:.4rem .95rem;cursor:pointer}
+.fp:hover{background:var(--softer)} .fp.on{background:#171717;color:#fff;border-color:#171717}
+.mrow{padding:1.5rem 0;border-bottom:1px solid var(--line)}
+.mrow:first-child{border-top:1px solid var(--line)}
+.mrow h3{font-size:1.5rem;font-weight:500;line-height:2rem}
+.mrow h3 a:hover{text-decoration:underline}
+.mrow .d{font-size:1rem;line-height:1.5rem;color:var(--body);margin-top:.15rem}
+.tg{display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.75rem}
+.tg span{font-size:13px;border-radius:6px;padding:2px 8px;line-height:1.35;color:#4f46e5;background:#eef2ff}
+.tg span.b{color:#2563eb;background:#eff6ff} .tg span.e{color:#059669;background:#ecfdf5}
+.tg span.a{color:#b45309;background:#fffbeb} .tg span.r{color:#e11d48;background:#fff1f2}
+.tg span.g{color:#525252;background:#f5f5f5}
+.mm{display:flex;gap:1.1rem;flex-wrap:wrap;margin-top:.8rem;font-size:14px;color:var(--dim)}
+.mm span,.mm a{display:inline-flex;align-items:center;gap:.35rem}
+.mm svg{width:15px;height:15px;flex:none}
+.mm a{text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px}
+.mm a:hover{color:var(--fg);text-decoration-color:currentColor}
+.mget{display:flex;gap:.5rem;margin-top:.9rem;align-items:stretch}
+.mget code{flex:1;min-width:0;font:400 13px var(--mono);color:var(--body);background:var(--softer);
+  border:1px solid var(--line);border-radius:8px;padding:.5rem .7rem;white-space:pre-wrap;word-break:break-all}
+.cp{font:400 13px var(--sans);color:var(--dim);background:#fff;border:1px solid var(--line);
+  border-radius:8px;padding:.5rem .8rem;cursor:pointer;flex:none}
+.cp:hover{background:var(--softer);color:var(--fg)}
+.mnone{color:var(--dim);padding:2rem 0}
+
+/* closing + footer */
+.closing{text-align:center;padding:6rem 0 7rem}
+.closing svg{width:78px;height:70px;margin:0 auto 2rem;display:block}
+.closing h2{font-size:3.25rem;font-weight:500;letter-spacing:-.035em;line-height:1.08;max-width:22ch;margin:0 auto 2rem}
+footer{border-top:1px solid var(--line)}
+.fin{display:flex;align-items:center;gap:1.5rem;max-width:90rem;margin:0 auto;padding:1.5rem;
+  font-size:14px;color:var(--dim);flex-wrap:wrap}
+.fin .sp{margin-left:auto;display:flex;gap:1.5rem;flex-wrap:wrap}
+.fin a:hover{color:var(--fg)}
+
+/* ---- dark theme ---------------------------------------------------------- */
+[data-theme="dark"]{
+  --fg:#f5f5f5; --body:#d4d4d4; --dim:#a3a3a3; --faint:#6e6e6e;
+  --line:#262626; --soft:#1c1c1c; --softer:#141414;
+}
+[data-theme="dark"] body{background:#0a0a0a}
+[data-theme="dark"] header{background:#0a0a0a}
+[data-theme="dark"] .pill.d{background:#f5f5f5;color:#0a0a0a}
+[data-theme="dark"] .pill.d:hover{background:#fff}
+[data-theme="dark"] .pill.g:hover{background:#242424}
+[data-theme="dark"] .mget code,[data-theme="dark"] .mget code,
+[data-theme="dark"] .ex .io{background:var(--softer);border-color:var(--line)}
+[data-theme="dark"] .shot figcaption code{background:var(--soft)}
+[data-theme="dark"] .ct i{background:#f5f5f5}
+[data-theme="dark"] .ct.lite i{background:#4a4a4a}
+[data-theme="dark"] .code{background:#141414;border:1px solid var(--line)}
+[data-theme="dark"] .cp,[data-theme="dark"] .fp{background:#0a0a0a}
+[data-theme="dark"] .cp:hover,[data-theme="dark"] .fp:hover{background:#1c1c1c}
+[data-theme="dark"] .fp.on{background:#f5f5f5;color:#0a0a0a;border-color:#f5f5f5}
+[data-theme="dark"] .railnav a.on{border-bottom-color:var(--fg)}
+[data-theme="dark"] .logos{color:#3d3d3d}
+[data-theme="dark"] .tg span{color:#a5b4fc;background:#1e1b4b}
+[data-theme="dark"] .tg span.b{color:#93c5fd;background:#172554}
+[data-theme="dark"] .tg span.e{color:#6ee7b7;background:#022c22}
+[data-theme="dark"] .tg span.a{color:#fcd34d;background:#292008}
+[data-theme="dark"] .tg span.r{color:#fda4af;background:#2d0d16}
+[data-theme="dark"] .tg span.g{color:#a3a3a3;background:#1f1f1f}
+/* the 300ms cross-fade while the theme changes, and nothing else animated */
+.theme-transition,.theme-transition *{transition:background-color .3s ease,color .3s ease,border-color .3s ease !important}
+
+/* toggle */
+.tt{width:38px;height:38px;flex:none;display:inline-flex;align-items:center;justify-content:center;
+  border:1px solid var(--line);border-radius:9999px;background:transparent;cursor:pointer;color:var(--fg);
+  position:relative}
+.tt:hover{background:var(--soft)}
+.tt:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
+.tt:active{transform:scale(.92)}
+.tt svg{position:absolute;transition:transform .35s cubic-bezier(.4,0,.2,1),opacity .25s}
+.tt .moon{transform:rotate(0) scale(1);opacity:1}
+.tt .sun{transform:rotate(-90deg) scale(0);opacity:0}
+[data-theme="dark"] .tt .moon{transform:rotate(90deg) scale(0);opacity:0}
+[data-theme="dark"] .tt .sun{transform:rotate(0) scale(1);opacity:1}
+.sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border-width:0}
+
+</style>
+</head>
+<body>
+
+<header><div class="hin">
+  <a class="brand" href="#top"><svg viewBox="0 21 168 126" aria-hidden="true"><g transform="translate(7 21)" shape-rendering="crispEdges"><rect height="14" width="14" x="56" y="0" fill="#d75fd7"/><rect height="14" width="14" x="70" y="0" fill="#d75fd7"/><rect height="14" width="14" x="84" y="0" fill="#d75fd7"/>
+<rect height="14" width="14" x="42" y="14" fill="#d75fd7"/><rect height="14" width="14" x="56" y="14" fill="#d75fd7"/><rect height="14" width="14" x="70" y="14" fill="#d75fd7"/><rect height="14" width="14" x="84" y="14" fill="#d75fd7"/><rect height="14" width="14" x="98" y="14" fill="#d75fd7"/><rect height="14" width="14" x="140" y="14" fill="#5fd7d7"/>
+<rect height="14" width="14" x="56" y="28" fill="#d75fd7"/><rect height="14" width="14" x="70" y="28" fill="#d75fd7"/><rect height="14" width="14" x="84" y="28" fill="#d75fd7"/><rect height="14" width="14" x="98" y="28" fill="#d75fd7"/><rect height="14" width="14" x="126" y="28" fill="#5fd7d7"/><rect height="14" width="14" x="140" y="28" fill="#5fd7d7"/>
+<rect height="14" width="14" x="0" y="42" fill="#ff8700"/><rect height="14" width="14" x="14" y="42" fill="#ff8700"/><rect height="14" width="14" x="28" y="42" fill="#ff8700"/><rect height="14" width="14" x="42" y="42" fill="#ff8700"/><rect height="14" width="14" x="56" y="42" fill="#00afaf"/><rect height="14" width="14" x="70" y="42" fill="#00afaf"/><rect height="14" width="14" x="84" y="42" fill="#fff"/><rect height="14" width="14" x="98" y="42" fill="#00afaf"/><rect height="14" width="14" x="112" y="42" fill="#5fd7d7"/><rect height="14" width="14" x="126" y="42" fill="#5fd7d7"/>
+<rect height="14" width="14" x="56" y="56" fill="#00afaf"/><rect height="14" width="14" x="70" y="56" fill="#00afaf"/><rect height="14" width="14" x="84" y="56" fill="#00afaf"/><rect height="14" width="14" x="98" y="56" fill="#00afaf"/><rect height="14" width="14" x="112" y="56" fill="#00afaf"/><rect height="14" width="14" x="126" y="56" fill="#5fd7d7"/><rect height="14" width="14" x="140" y="56" fill="#5fd7d7"/>
+<rect height="14" width="14" x="70" y="70" fill="#00afaf"/><rect height="14" width="14" x="84" y="70" fill="#00afaf"/><rect height="14" width="14" x="98" y="70" fill="#00afaf"/><rect height="14" width="14" x="112" y="70" fill="#00afaf"/><rect height="14" width="14" x="126" y="70" fill="#5fd7d7"/><rect height="14" width="14" x="140" y="70" fill="#5fd7d7"/>
+<rect height="14" width="14" x="84" y="84" fill="#00afaf"/><rect height="14" width="14" x="98" y="84" fill="#00afaf"/><rect height="14" width="14" x="112" y="84" fill="#5fd7d7"/><rect height="14" width="14" x="126" y="84" fill="#5fd7d7"/>
+<rect height="14" width="14" x="98" y="98" fill="#00afaf"/><rect height="14" width="14" x="112" y="98" fill="#5fd7d7"/>
+<rect height="14" width="14" x="112" y="112" fill="#5fd7d7"/></g></svg><b>nexdune</b></a>
+  <nav class="hnav"><a href="#models">Models</a><a href="#brio">Brio</a>
+    <a href="https://github.com/JustVugg/nexdune/blob/main/docs/quickstart.md">Docs</a></nav>
+  <label class="hsearch">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+    <input id="q" type="search" placeholder="Search models" autocomplete="off">
+  </label>
+  <div class="hright">
+    <button type="button" class="tt" id="tt" aria-label="Switch to dark theme" title="Switch theme (D)">
+      <span class="sr">Toggle theme</span>
+      <svg class="sun" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2.5M12 19.5V22M4.22 4.22l1.77 1.77M18.01 18.01l1.77 1.77M2 12h2.5M19.5 12H22M4.22 19.78l1.77-1.77M18.01 5.99l1.77-1.77"/></svg>
+      <svg class="moon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+    </button>
+    <a class="pill g" href="https://github.com/JustVugg/nexdune/blob/main/docs/quickstart.md">Quickstart</a>
+    <a class="pill d" href="https://github.com/JustVugg/nexdune/">GitHub</a>
+  </div>
+</div></header>
+
+<main id="top">
+
+<section class="hero"><div class="wide hgrid">
+  <div>
+    <h1>Run open models.<br>Keep your hardware.</h1>
+    <p class="sub">nexdune streams a model's experts off the disk instead of loading them, so a
+      2.8-trillion-parameter model answers on a machine that could never hold it.</p>
+    <div class="hcta">
+      <a class="pill d big" href="#models">Browse models</a>
+      <a class="pill g big" href="https://github.com/JustVugg/nexdune/blob/main/docs/quickstart.md">Quickstart</a>
+    </div>
+  </div>
+  <figure class="shot">
+    <video src="demo.webm" poster="demo-poster.jpg" width="1280" height="800"
+           autoplay muted loop playsinline preload="metadata"
+           aria-label="A real session: the terminal chat, then the same model scoring a closed set of options in the dashboard"></video>
+    <figcaption>A real session, nothing staged: <code>nexdune chat</code> attached to a running
+      server, then the same model in brio mode. The numbers are the ones it produced.</figcaption>
+  </figure>
+</div>
+</div></section>
+
+<p class="trust">Measured today on machines people actually have</p>
+<div class="logos"><span>RTX 5090</span><span>Graviton4</span><span>Xeon Gold</span>
+  <span>DGX Spark</span><span>M5 Max</span><span>Ryzen 9</span><span>Mac Mini</span></div>
+
+<section class="msec" id="models"><div class="narrow">
+  <h2>Models</h2>
+  <p class="sub">Pull a converted container where one is published, or point the engine at the
+     original checkpoint.</p>
+  <div class="fbar"><button class="fp" data-f="vision">vision</button><button class="fp" data-f="audio">audio</button><button class="fp" data-f="tools">tools</button><button class="fp" data-f="int4">int4</button><button class="fp" data-f="mtp">mtp</button></div>
+  <div id="mlist">
+      <article class="mrow" data-find="glm-5.2 glm-5.2 glm z.ai nexdune.c moe int4 mla mtp" data-tags="moe int4 mla mtp">
+        <h3><a href="https://github.com/JustVugg/nexdune/blob/main/docs/quickstart.md">glm-5.2</a></h3>
+        <p class="d">The model nexdune was built around. 78 layers, 256 routed experts, streamed from disk on a machine that could never hold them.</p>
+        <div class="tg"><span class="">MoE</span><span class="e">int4</span><span class="g">MLA</span><span class="a">MTP</span></div>
+        <div class="mm"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9z"/></svg>744B total</span><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>40B active</span>
+          <a href="https://huggingface.co/mastouri/GLM-5.2-nexdune-int4-g64-with-int8-mtp"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 19h16"/></svg>container, 372 GB</a><a href="https://huggingface.co/zai-org/GLM-5.2-FP8">upstream</a>
+          <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>nexdune.c</span></div>
+        <div class="mget"><code>hf download mastouri/GLM-5.2-nexdune-int4-g64-with-int8-mtp --local-dir ~/Models/glm52_i4</code><button class="cp" type="button">copy</button></div>
+      </article>
+      <article class="mrow" data-find="glm-5.3-flash glm-5.3-flash glm53 z.ai glm53.c moe int4-gs64 vision" data-tags="moe int4-gs64 vision">
+        <h3><a href="https://github.com/JustVugg/nexdune/blob/main/docs/glm53-flash.md">glm-5.3-flash</a></h3>
+        <p class="d">Natively multimodal. Routed experts convert to int4-gs64, the dense set stays BF16 and its precision is a load-time choice.</p>
+        <div class="tg"><span class="">MoE</span><span class="e">int4-gs64</span><span class="b">vision</span></div>
+        <div class="mm"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9z"/></svg>320B total</span><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>18B active</span>
+          <a href="https://huggingface.co/Justvugg/GLM-5.3-nexdune-int4-g64"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 19h16"/></svg>container, 419 GB</a><a href="https://huggingface.co/zai-org/GLM-5.3-Flash">upstream</a>
+          <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>glm53.c</span></div>
+        <div class="mget"><code>hf download Justvugg/GLM-5.3-nexdune-int4-g64 --local-dir ~/Models/glm53_i4</code><button class="cp" type="button">copy</button></div>
+      </article>
+      <article class="mrow" data-find="deepseek v4.1 flash deepseek-v4.1-flash deepseek_v41 deepseek deepseek_v41.c moe fp4 vision tools dspark" data-tags="moe fp4 vision tools dspark">
+        <h3><a href="https://github.com/JustVugg/nexdune/blob/main/docs/deepseek-v41.md">deepseek-v4.1-flash</a></h3>
+        <p class="d">Runs off the official checkpoint untouched: experts are already fp4, the dense set fp8-e4m3. Routed experts cost 4.5 GB per token against GLM-5.2's 12.7.</p>
+        <div class="tg"><span class="">MoE</span><span class="e">fp4</span><span class="b">vision</span><span class="b">tools</span><span class="a">DSpark</span></div>
+        <div class="mm"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9z"/></svg>552B total</span><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>16B active</span>
+          <a href="https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 19h16"/></svg>official, no conversion</a>
+          <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>deepseek_v41.c</span></div>
+        <div class="mget"><code>hf download deepseek-ai/DeepSeek-V4.1-Flash --local-dir ~/Models/DeepSeek-V4.1-Flash</code><button class="cp" type="button">copy</button></div>
+      </article>
+      <article class="mrow" data-find="deepseek v4 flash deepseek-v4-flash deepseek_v4 deepseek deepseek_v4.c moe fp4 mtp reap" data-tags="moe fp4 mtp reap">
+        <h3><a href="https://github.com/JustVugg/nexdune/blob/main/docs/deepseek-v4.md">deepseek-v4-flash</a></h3>
+        <p class="d">Native fp4 experts, fp8-e4m3 dense. The REAP-pruned 150B cut, 132 of 256 experts and 85 GB, loads with the same engine and no conversion.</p>
+        <div class="tg"><span class="">MoE</span><span class="e">fp4</span><span class="a">MTP</span><span class="a">REAP</span></div>
+        <div class="mm"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9z"/></svg>284B total</span><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>13B active</span>
+          <a href="https://huggingface.co/deepseek-ai/DeepSeek-V4-Flash-0731"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 19h16"/></svg>official, no conversion</a>
+          <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>deepseek_v4.c</span></div>
+        <div class="mget"><code>hf download deepseek-ai/DeepSeek-V4-Flash-0731 --local-dir ~/Models/DeepSeek-V4-Flash</code><button class="cp" type="button">copy</button></div>
+      </article>
+      <article class="mrow" data-find="kimi k3 kimi-k3 kimi moonshot kimi_k3.c moe mxfp4 kda largest" data-tags="moe mxfp4 kda largest">
+        <h3><a href="https://github.com/JustVugg/nexdune/blob/main/docs/kimi_k3.md">kimi-k3</a></h3>
+        <p class="d">The largest model nexdune runs. 93 layers, 69 Kimi Delta Attention plus 24 gated MLA, and 16 of 896 experts per token. QAT-trained MXFP4 streams straight from the original shards.</p>
+        <div class="tg"><span class="">MoE</span><span class="e">MXFP4</span><span class="g">KDA</span><span class="r">largest</span></div>
+        <div class="mm"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9z"/></svg>2.8T total</span><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>104B active</span>
+          <a href="https://huggingface.co/moonshotai/Kimi-K3"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 19h16"/></svg>official, no conversion</a>
+          <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>kimi_k3.c</span></div>
+        <div class="mget"><code>hf download moonshotai/Kimi-K3 --local-dir ~/Models/Kimi-K3</code><button class="cp" type="button">copy</button></div>
+      </article>
+      <article class="mrow" data-find="inkling inkling inkling thinking machines inkling.c moe int4 audio apache 2.0" data-tags="moe int4 audio apache 2.0">
+        <h3><a href="https://github.com/JustVugg/nexdune/blob/main/docs/inkling.md">inkling</a></h3>
+        <p class="d">Sliding-window attention with short convolutions. Audio input is supported when the audio tensors are present; the dense set fits a 25 GB host at 15.3 GB.</p>
+        <div class="tg"><span class="">MoE</span><span class="e">int4</span><span class="">audio</span><span class="g">Apache 2.0</span></div>
+        <div class="mm"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9z"/></svg>975B total</span><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>41B active</span>
+          <a href="https://huggingface.co/nbeerbower/Inkling-nexdune-int4"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 19h16"/></svg>container, 469 GB</a><a href="https://huggingface.co/thinkingmachines/Inkling">upstream</a>
+          <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>inkling.c</span></div>
+        <div class="mget"><code>hf download nbeerbower/Inkling-nexdune-int4 --local-dir ~/Models/inkling_i4</code><button class="cp" type="button">copy</button></div>
+      </article>
+      <article class="mrow" data-find="qwen3.8-flash-next qwen3.8-flash-next qwen38 alibaba qwen38.c moe block-fp8 deltanet ple" data-tags="moe block-fp8 deltanet ple">
+        <h3><a href="https://github.com/JustVugg/nexdune/blob/main/docs/qwen38.md">qwen3.8-flash-next</a></h3>
+        <p class="d">48 layers, 512 experts, 10 routed per token. 125B of backbone plus a 51B n-gram embedding that stays pageable and a 4B MTP head; the experts stay native block-FP8. CPU only for now.</p>
+        <div class="tg"><span class="">MoE</span><span class="e">block-FP8</span><span class="g">DeltaNet</span><span class="g">PLE</span></div>
+        <div class="mm"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9z"/></svg>180B total</span><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>6B active</span>
+          <a href="https://huggingface.co/Qwen/Qwen3.8-Flash-Next-FP8"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 19h16"/></svg>official, no conversion</a>
+          <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>qwen38.c</span></div>
+        <div class="mget"><code>hf download Qwen/Qwen3.8-Flash-Next-FP8 --local-dir ~/Models/Qwen3.8-Flash-Next-FP8</code><button class="cp" type="button">copy</button></div>
+      </article>
+      <article class="mrow" data-find="qwen3.6-35b-a3b qwen3.6-35b-a3b qwen36 alibaba qwen36.c moe int4-gs64 deltanet cuda tier" data-tags="moe int4-gs64 deltanet cuda tier">
+        <h3><a href="https://github.com/JustVugg/nexdune/blob/main/docs/qwen36.md">qwen3.6-35b-a3b</a></h3>
+        <p class="d">The one to start with: 20 GB on disk, gated attention interleaved with gated DeltaNet. With CUDA=1 the VRAM expert tier measured 1.44 to 10.05 tok/s on two 8 GB cards, output bit-identical to the CPU path.</p>
+        <div class="tg"><span class="">MoE</span><span class="e">int4-gs64</span><span class="g">DeltaNet</span><span class="a">CUDA tier</span></div>
+        <div class="mm"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9z"/></svg>35B total</span><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>3B active</span>
+          <a href="https://huggingface.co/Kreuzzelg/qwen36-35b-a3b-nexdune-i4-gs64"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 19h16"/></svg>container, 20 GB</a><a href="https://huggingface.co/Qwen/Qwen3.6-35B-A3B">upstream</a>
+          <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>qwen36.c</span></div>
+        <div class="mget"><code>hf download Kreuzzelg/qwen36-35b-a3b-nexdune-i4-gs64 --local-dir ~/Models/qwen36_i4_gs64</code><button class="cp" type="button">copy</button></div>
+      </article>
+      <article class="mrow" data-find="olmoe 1b-7b olmoe olmoe allen ai olmoe.c moe int8 open data small" data-tags="moe int8 open data small">
+        <h3><a href="https://github.com/JustVugg/nexdune/blob/main/docs/quickstart.md">olmoe</a></h3>
+        <p class="d">Fully open weights and data, 16 layers and 64 experts. The one to learn the tooling on: the whole container is 7 GB.</p>
+        <div class="tg"><span class="">MoE</span><span class="e">int8</span><span class="g">open data</span><span class="g">small</span></div>
+        <div class="mm"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9z"/></svg>7B total</span><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>1B active</span>
+          <a href="https://huggingface.co/allenai/OLMoE-1B-7B-0125-Instruct"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 19h16"/></svg>convert, 7 GB int8</a>
+          <span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>olmoe.c</span></div>
+        <div class="mget"><code>python3 c/tools/convert_olmoe_merged.py --repo allenai/OLMoE-1B-7B-0125-Instruct --out ~/Models/olmoe_i8</code><button class="cp" type="button">copy</button></div>
+      </article>
+  </div>
+  <p class="mnone" id="mnone" hidden>Nothing matches that.</p>
+</div></section>
+
+<div class="mid rail">
+  <nav class="railnav" id="rail">
+    <a href="#fits" class="on">Bigger than your RAM</a>
+    <a href="#open">Frontier open models</a>
+    <a href="#brio">Brio mode</a>
+    <a href="#yours">Your weights stay yours</a>
+  </nav>
+  <div>
+
+    <div class="block" id="fits">
+      <h2>Bigger than your RAM</h2>
+      <p class="sub">A mixture-of-experts token touches a small fraction of the weights. nexdune
+        keeps that fraction resident and reads the rest as the router asks for it, so the model
+        does not have to fit.</p>
+      <div class="chart"><div class="crow"><span class="cl">6x RTX 5090<s>full residency</s></span><span class="ct"><i style="width:100.0%"></i></span><span class="cv">9.0-9.2<s> tok/s</s></span></div><div class="crow"><span class="cl">AWS Graviton4<s>aarch64, CPU only</s></span><span class="ct"><i style="width:87.0%"></i></span><span class="cv">8.0<s> tok/s</s></span></div><div class="crow"><span class="cl">2x Xeon Gold 6430<s>1 TB DDR5</s></span><span class="ct"><i style="width:58.9%"></i></span><span class="cv">5.42<s> tok/s</s></span></div><div class="crow"><span class="cl">NVIDIA DGX Spark<s>121 GB unified</s></span><span class="ct"><i style="width:36.2%"></i></span><span class="cv">3.33<s> tok/s</s></span></div><div class="crow"><span class="cl">MacBook Pro M5 Max<s>Metal</s></span><span class="ct"><i style="width:21.7%"></i></span><span class="cv">2.0<s> tok/s</s></span></div><div class="crow"><span class="cl">Ryzen 9 9950X3D<s>RTX 5090 + NVMe</s></span><span class="ct"><i style="width:13.4%"></i></span><span class="cv">1.23<s> tok/s</s></span></div><div class="crow"><span class="cl">25 GB dev box<s>cold</s></span><span class="ct"><i style="width:1.1%"></i></span><span class="cv">0.05-0.1<s> tok/s</s></span></div></div>
+      <p class="src">GLM-5.2 int4, decode speed reported by the people who ran it. The hardware
+        changes where the experts live, not what the model answers.</p>
+      <a class="more" href="https://github.com/JustVugg/nexdune/blob/main/docs/benchmarks.md">See the benchmarks &rarr;</a>
+    </div>
+
+    <div class="block" id="open">
+      <h2>Frontier open models</h2>
+      <p class="sub">Nine families run today, one hand-written C file each. Not a wrapper around
+        someone else's runtime.</p>
+      <div class="chart"><div class="crow"><span class="cl">kimi-k3<s>104B active</s></span><span class="ct"><i style="width:100.0%"></i></span><span class="cv">2.8T</span></div><div class="crow"><span class="cl">inkling<s>41B active</s></span><span class="ct"><i style="width:34.8%"></i></span><span class="cv">975B</span></div><div class="crow"><span class="cl">glm-5.2<s>40B active</s></span><span class="ct"><i style="width:26.6%"></i></span><span class="cv">744B</span></div><div class="crow"><span class="cl">deepseek-v4.1-flash<s>16B active</s></span><span class="ct"><i style="width:19.7%"></i></span><span class="cv">552B</span></div><div class="crow"><span class="cl">glm-5.3-flash<s>18B active</s></span><span class="ct"><i style="width:11.4%"></i></span><span class="cv">320B</span></div><div class="crow"><span class="cl">deepseek-v4-flash<s>13B active</s></span><span class="ct"><i style="width:10.1%"></i></span><span class="cv">284B</span></div><div class="crow"><span class="cl">qwen3.8-flash-next<s>6B active</s></span><span class="ct"><i style="width:6.4%"></i></span><span class="cv">180B</span></div><div class="crow"><span class="cl">qwen3.6-35b-a3b<s>3B active</s></span><span class="ct"><i style="width:1.2%"></i></span><span class="cv">35B</span></div><div class="crow"><span class="cl">olmoe<s>1B active</s></span><span class="ct"><i style="width:0.8%"></i></span><span class="cv">7B</span></div></div>
+      <p class="src">Total parameters. Only the active ones are computed per token, and only the
+        routed experts move. The engines, by the names the docs use:
+        GLM-5.3-Flash, GLM-5.2/5.3, Inkling, Kimi K3, OLMoE, Qwen3.6-35B-A3B, Qwen3.8-Flash-Next, DeepSeek V4 Flash, DeepSeek V4.1 Flash.</p>
+      <a class="more" href="#models">Browse all models &rarr;</a>
+    </div>
+
+    <div class="block" id="brio">
+      <h2>Brio mode</h2>
+      <p class="sub">Most of what people ask a model for is a choice, not an essay. Hand it the
+        options it may pick and it reports the probability of each one. Nothing is generated,
+        so there is nothing to parse and no answer outside the list.</p>
+      <div class="chart"><div class="crow"><span class="cl">one question, 10 options<s>brio</s></span><span class="ct"><i style="width:38.8%"></i></span><span class="cv">101.2 s</span></div><div class="crow"><span class="cl"><s>chat</s></span><span class="ct"><i style="width:48.1%"></i></span><span class="cv">125.6 s<s> 1.2x</s></span></div><div class="crow"><span class="cl">JSON, 4-field schema<s>brio</s></span><span class="ct"><i style="width:39.8%"></i></span><span class="cv">103.8 s</span></div><div class="crow"><span class="cl"><s>chat</s></span><span class="ct"><i style="width:94.2%"></i></span><span class="cv">246.0 s<s> 2.4x</s></span></div><div class="crow"><span class="cl">4 items, shared instructions<s>brio</s></span><span class="ct"><i style="width:17.5%"></i></span><span class="cv">45.7 s</span></div><div class="crow"><span class="cl"><s>chat</s></span><span class="ct"><i style="width:100.0%"></i></span><span class="cv">261.1 s<s> 5.7x</s></span></div></div>
+      <p class="src">Measured on qwen36 (22 GB), same engine, separate processes. Time from the
+        prompt to the answer.</p>
+
+      <div class="exs">
+        <div class="ex"><h3>Triage and routing</h3>
+          <p>Anything that ends in a bucket: a ticket to a queue, a pull request to a verdict,
+             a message to a policy.</p>
+          <div class="io"><b>question</b> what should the reviewer do?<br>
+            <b>options</b> merge &middot; request changes &middot; close</div></div>
+        <div class="ex"><h3>Filling a schema</h3>
+          <p>Braces, quotes and field names are data. The engine fills one slot at a time, so
+             the JSON is valid by construction.</p>
+          <div class="io"><b>brio</b> every value is one you allowed<br>
+            <b>chat</b> invented no_tests and track</div></div>
+        <div class="ex"><h3>Many questions, one document</h3>
+          <p>Read the contract once, then ask it twenty things. The first question pays for the
+             reading, the rest cost their own words.</p>
+          <div class="io"><b>one snapshot</b> 496 tokens for 4 items<br>
+            <b>two levels</b> 176 tokens</div></div>
+      </div>
+
+      <div class="split2">
+        <div class="code"><span class="lbl">POST /v1/brio</span><pre>{
+  <span class="k">"model"</span>: <span class="s">"qwen36"</span>,
+  <span class="k">"state"</span>: <span class="s">"340 lines, 8 files, no tests."</span>,
+  <span class="k">"question"</span>: <span class="s">"What should the reviewer do?"</span>,
+  <span class="k">"options"</span>: [<span class="s">"merge"</span>, <span class="s">"request changes"</span>, <span class="s">"close"</span>]
+}</pre></div>
+        <div class="code"><span class="lbl">the reply</span><pre>{
+  <span class="k">"answer"</span>: <span class="s">"request changes"</span>,
+  <span class="k">"entropy"</span>: <span class="n">0.121</span>,
+  <span class="k">"choices"</span>: [
+    {<span class="k">"option"</span>: <span class="s">"request changes"</span>, <span class="k">"p"</span>: <span class="n">0.974</span>},
+    {<span class="k">"option"</span>: <span class="s">"merge"</span>,           <span class="k">"p"</span>: <span class="n">0.023</span>},
+    {<span class="k">"option"</span>: <span class="s">"close"</span>,           <span class="k">"p"</span>: <span class="n">0.004</span>}
+  ],
+  <span class="k">"usage"</span>: {<span class="k">"completion_tokens"</span>: <span class="n">0</span>}
+}</pre></div>
+      </div>
+
+      <h3 style="font-size:1.3rem;font-weight:500;margin:3rem 0 .6rem;letter-spacing:-.02em">
+        And the thing generation cannot give</h3>
+      <p class="sub" style="margin-bottom:1.6rem">Same request, same model, three fields of one
+        JSON schema. On <b>area</b> it is sure and it is right. On the other two the entropy is
+        near the maximum: it does not know, and it says so. The chat arm wrote
+        <code style="font:400 14px var(--mono);background:var(--soft);padding:1px 6px;border-radius:4px">"risk": "high"</code>
+        with exactly the same face.</p>
+      <div class="chart"><div class="crow"><span class="cl">area<s>the model is sure</s></span><span class="ct"><i style="width:94.4%"></i></span><span class="cv">94.4%<s> entropy 0.17</s></span></div><div class="crow"><span class="cl">needs_tests<s>it is not</s></span><span class="ct"><i style="width:52.0%"></i></span><span class="cv">52%<s> entropy 0.95</s></span></div><div class="crow"><span class="cl">risk<s>it is not</s></span><span class="ct"><i style="width:46.0%"></i></span><span class="cv">46%<s> entropy 0.99</s></span></div></div>
+      <p class="src">That number is what you put a threshold on to send a case to a human.
+        Brio does not write prose, so anything open-ended is still the chat's job, and the
+        speed multipliers above were measured on an engine reading experts from disk.</p>
+      <a class="more" href="https://github.com/JustVugg/nexdune/blob/main/docs/brio.md">Read the brio guide &rarr;</a>
+    </div>
+
+    <div class="block" id="yours">
+      <h2>Your weights stay yours</h2>
+      <p class="sub">The engine is one C file per family with no runtime and no dependencies.
+        It runs on a laptop with the network off, and the model files never leave the machine.
+        Apache 2.0, and every container keeps the licence its authors gave it.</p>
+      <table class="cmp">
+        <tr><th>what you keep</th><th></th></tr>
+        <tr><td class="b">The weights</td><td class="x">on your disk, in a format you can read</td></tr>
+        <tr><td class="b">The prompts</td><td class="x">never sent anywhere</td></tr>
+        <tr><td class="b">The engine</td><td class="x">one file you can read in an afternoon</td></tr>
+        <tr><td class="b">The numbers</td><td class="x">token-exact against the reference implementation</td></tr>
+      </table>
+      <a class="more" href="https://github.com/JustVugg/nexdune/">Read the engine &rarr;</a>
+    </div>
+
+  </div>
+</div>
+
+
+
+<section class="closing"><div class="wide">
+  <svg viewBox="0 21 168 126" aria-hidden="true"><g transform="translate(7 21)" shape-rendering="crispEdges"><rect height="14" width="14" x="56" y="0" fill="#d75fd7"/><rect height="14" width="14" x="70" y="0" fill="#d75fd7"/><rect height="14" width="14" x="84" y="0" fill="#d75fd7"/>
+<rect height="14" width="14" x="42" y="14" fill="#d75fd7"/><rect height="14" width="14" x="56" y="14" fill="#d75fd7"/><rect height="14" width="14" x="70" y="14" fill="#d75fd7"/><rect height="14" width="14" x="84" y="14" fill="#d75fd7"/><rect height="14" width="14" x="98" y="14" fill="#d75fd7"/><rect height="14" width="14" x="140" y="14" fill="#5fd7d7"/>
+<rect height="14" width="14" x="56" y="28" fill="#d75fd7"/><rect height="14" width="14" x="70" y="28" fill="#d75fd7"/><rect height="14" width="14" x="84" y="28" fill="#d75fd7"/><rect height="14" width="14" x="98" y="28" fill="#d75fd7"/><rect height="14" width="14" x="126" y="28" fill="#5fd7d7"/><rect height="14" width="14" x="140" y="28" fill="#5fd7d7"/>
+<rect height="14" width="14" x="0" y="42" fill="#ff8700"/><rect height="14" width="14" x="14" y="42" fill="#ff8700"/><rect height="14" width="14" x="28" y="42" fill="#ff8700"/><rect height="14" width="14" x="42" y="42" fill="#ff8700"/><rect height="14" width="14" x="56" y="42" fill="#00afaf"/><rect height="14" width="14" x="70" y="42" fill="#00afaf"/><rect height="14" width="14" x="84" y="42" fill="#fff"/><rect height="14" width="14" x="98" y="42" fill="#00afaf"/><rect height="14" width="14" x="112" y="42" fill="#5fd7d7"/><rect height="14" width="14" x="126" y="42" fill="#5fd7d7"/>
+<rect height="14" width="14" x="56" y="56" fill="#00afaf"/><rect height="14" width="14" x="70" y="56" fill="#00afaf"/><rect height="14" width="14" x="84" y="56" fill="#00afaf"/><rect height="14" width="14" x="98" y="56" fill="#00afaf"/><rect height="14" width="14" x="112" y="56" fill="#00afaf"/><rect height="14" width="14" x="126" y="56" fill="#5fd7d7"/><rect height="14" width="14" x="140" y="56" fill="#5fd7d7"/>
+<rect height="14" width="14" x="70" y="70" fill="#00afaf"/><rect height="14" width="14" x="84" y="70" fill="#00afaf"/><rect height="14" width="14" x="98" y="70" fill="#00afaf"/><rect height="14" width="14" x="112" y="70" fill="#00afaf"/><rect height="14" width="14" x="126" y="70" fill="#5fd7d7"/><rect height="14" width="14" x="140" y="70" fill="#5fd7d7"/>
+<rect height="14" width="14" x="84" y="84" fill="#00afaf"/><rect height="14" width="14" x="98" y="84" fill="#00afaf"/><rect height="14" width="14" x="112" y="84" fill="#5fd7d7"/><rect height="14" width="14" x="126" y="84" fill="#5fd7d7"/>
+<rect height="14" width="14" x="98" y="98" fill="#00afaf"/><rect height="14" width="14" x="112" y="98" fill="#5fd7d7"/>
+<rect height="14" width="14" x="112" y="112" fill="#5fd7d7"/></g></svg>
+  <h2>Get up and running on hardware you already own</h2>
+  <a class="pill d big" href="https://github.com/JustVugg/nexdune/blob/main/docs/quickstart.md">Get started</a>
+</div></section>
+
+</main>
+
+
+
+<footer><div class="fin">
+  <span>&copy; 2026 nexdune</span>
+  <span>Currently shipping <b>v1.12.1</b></span>
+  <span class="sp">
+    <a href="https://github.com/JustVugg/nexdune/">GitHub</a><a href="https://github.com/JustVugg/nexdune/blob/main/docs/quickstart.md">Docs</a>
+    <a href="https://github.com/JustVugg/nexdune/blob/main/docs/brio.md">Brio</a><a href="https://github.com/JustVugg/nexdune/blob/main/docs/api.md">API</a>
+    <a href="https://github.com/JustVugg/nexdune/blob/main/docs/benchmarks.md">Benchmarks</a><a href="https://github.com/JustVugg/nexdune/issues">Issues</a>
+    <a href="https://github.com/JustVugg/nexdune/blob/main/LICENSE">Apache 2.0</a>
+  </span>
+</div></footer>
+
+<script>
+/* Search, filters and the rail highlight. One file, no build step. */
+(function(){
+  var q=document.getElementById("q"),list=document.getElementById("mlist"),
+      none=document.getElementById("mnone"),pills=document.querySelectorAll(".fp"),active="";
+  function apply(){
+    var n=q.value.trim().toLowerCase(),shown=0;
+    Array.prototype.forEach.call(list.children,function(r){
+      var hit=(!n||r.dataset.find.indexOf(n)>=0)&&(!active||r.dataset.tags.indexOf(active)>=0);
+      r.hidden=!hit; if(hit)shown++;
+    });
+    none.hidden=shown>0;
+  }
+  q.addEventListener("input",function(){
+    apply();
+    if(q.value.trim()) document.getElementById("models").scrollIntoView({behavior:"smooth",block:"start"});
+  });
+  pills.forEach(function(p){
+    p.addEventListener("click",function(){
+      var was=p.classList.contains("on");
+      pills.forEach(function(o){o.classList.remove("on")});
+      active = was ? "" : (p.classList.add("on"), p.dataset.f);
+      apply();
+    });
+  });
+  document.querySelectorAll(".cp").forEach(function(b){
+    b.addEventListener("click",function(){
+      navigator.clipboard.writeText(b.previousElementSibling.textContent).then(function(){
+        b.textContent="copied"; setTimeout(function(){b.textContent="copy"},1200);
+      });
+    });
+  });
+  var links=[].slice.call(document.querySelectorAll("#rail a")),
+      blocks=links.map(function(a){return document.querySelector(a.getAttribute("href"))});
+  function mark(){
+    var y=window.scrollY+220,best=0;
+    blocks.forEach(function(b,i){ if(b&&b.offsetTop<=y) best=i; });
+    links.forEach(function(a,i){ a.classList.toggle("on",i===best) });
+  }
+  window.addEventListener("scroll",mark,{passive:true}); mark();
+
+  /* Theme. Same contract as PR #1551: the "nexdune_theme" key, the data-theme
+     attribute, the D shortcut, and the OS preference followed only while the
+     visitor has not chosen for themselves. */
+  var tt=document.getElementById("tt");
+  function paint(theme){
+    if(!tt)return;
+    var dark=theme==="dark";
+    tt.setAttribute("aria-label", dark?"Switch to light theme":"Switch to dark theme");
+    tt.setAttribute("title", (dark?"Switch to light theme":"Switch to dark theme")+" (D)");
+  }
+  function setTheme(theme,persist){
+    var el=document.documentElement;
+    el.classList.add("theme-transition");
+    el.setAttribute("data-theme",theme);
+    if(persist){ try{ localStorage.setItem("nexdune_theme",theme) }catch(e){} }
+    paint(theme);
+    setTimeout(function(){ el.classList.remove("theme-transition") },300);
+  }
+  function flip(){
+    setTheme(document.documentElement.getAttribute("data-theme")==="dark"?"light":"dark",true);
+  }
+  paint(document.documentElement.getAttribute("data-theme")||"light");
+  if(tt) tt.addEventListener("click",flip);
+  window.addEventListener("keydown",function(e){
+    var t=(document.activeElement||{}).tagName;
+    if((e.key==="d"||e.key==="D")&&["INPUT","TEXTAREA","SELECT"].indexOf(t)<0&&!e.metaKey&&!e.ctrlKey&&!e.altKey){
+      e.preventDefault(); flip();
+    }
+  });
+  try{
+    window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change",function(e){
+      if(!localStorage.getItem("nexdune_theme")) setTheme(e.matches?"dark":"light",false);
+    });
+  }catch(e){}
+
+})();
+</script>
+</body>
+</html>
