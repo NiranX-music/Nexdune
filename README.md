@@ -3,13 +3,6 @@
 </p>
 
 <p align="center">
-  <a href="https://justvugg.github.io/nexdune"><img src="https://img.shields.io/badge/website-justvugg.github.io%2Fnexdune-1f6feb" alt="Website"></a>
-  <a href="https://github.com/JustVugg/nexdune/releases"><img src="https://img.shields.io/github/v/release/JustVugg/nexdune?color=2ea043" alt="Latest release"></a>
-</p>
-
-<p align="center">
-  <a href="https://justvugg.github.io/nexdune"><b>Website</b></a> ·
-  <a href="https://discord.gg/RXV83nSZdk"><b>Discord</b></a> ·
   English · <a href="README.zh-CN.md">简体中文</a> · <a href="README.zh-TW.md">繁體中文</a> · <a href="README.it.md">Italiano</a> · <a href="README.ja.md">日本語</a>
 </p>
 
@@ -40,7 +33,7 @@ may reduce speed; it must not quietly redefine the model.
 
 ```
 $ ./nexdune chat
-  🐦 nexdune v1.12.1 — GLM-5.2 · 744B MoE · int4 · streaming CPU
+  nexdune v1.12.1 — GLM-5.2 · 744B MoE · int4 · streaming CPU
   ✓ ready in 32s · resident 9.9 GB
   › ciao!
   ◆ Ciao! 😊 Come posso aiutarti oggi?
@@ -65,7 +58,7 @@ not sure. Here: <strong>request changes at 99.9%</strong>, entropy 0.005, 4 toke
 <p align="center">
   <img src="docs/media/nexdune-brain.png" width="900" alt="the Brain page: the measured expert atlas of GLM-5.2 drawn as a cortex, ten regions to enter">
 </p>
-<p align="center"><em>The <strong>Brain</strong> page, <strong>Explore</strong>: the <a href="https://github.com/JustVugg/nexdune/issues/175">measured expert atlas</a> of GLM-5.2
+<p align="center"><em>The <strong>Brain</strong> page, <strong>Explore</strong>: the <a href="https://github.com/NiranX-music/Nexdune/issues/175">measured expert atlas</a> of GLM-5.2
 drawn as a cortex. 13,260 characterised experts in ten regions (Python, SQL, mathematics, poetry, law, Chinese…);
 position is measured routing affinity, not a learned embedding. Choose a region to enter it. <strong>Live routing</strong> switches
 to the model actually running: one cell per expert, colour is the storage tier, and every expert routed in a turn flashes white.</em></p>
@@ -147,7 +140,7 @@ TTFT, expert hit rate, bytes read, and quality check; change one variable, repea
 the run, and attach raw logs. Start with
 [CONTRIBUTING.md](CONTRIBUTING.md), compare against
 [the benchmark protocol](docs/benchmarking.md), then
-[open an experiment issue](https://github.com/JustVugg/nexdune/issues/new).
+[open an experiment issue](https://github.com/NiranX-music/Nexdune/issues/new).
 A well-controlled failure is more valuable here than an unexplained fast number.
 
 ## The idea
@@ -176,7 +169,7 @@ router proves they are needed. Measured routing heat decides which experts earn
 which tier, the router runs a layer ahead so prefetch hides the staging latency,
 and — like a JIT — the engine learns your workload: the more you run, the hotter
 the right experts get. It works because routing has measurable structure (see
-the [expert atlas](https://github.com/JustVugg/nexdune/issues/175)) — and
+the [expert atlas](https://github.com/NiranX-music/Nexdune/issues/175)) — and
 structure is cacheable.
 
 The engine is a single C file (`c/nexdune.c`) plus small headers. No BLAS, no
@@ -264,7 +257,7 @@ entirely. Between the tiers sits a **learning cache**: the engine records which
 experts *your* workload routes to (`.nexdune_usage`, updated every turn) and pins
 the hottest ones automatically — nexdune literally gets faster the more you use
 it. On multi-socket hosts, `NEXDUNE_NUMA=1` interleaves the resident weights across
-memory controllers ([#82](https://github.com/JustVugg/nexdune/issues/82)).
+memory controllers ([#82](https://github.com/NiranX-music/Nexdune/issues/82)).
 
 For a second drive that cannot hold the whole model, Nexdune can rank a partial
 mirror from the expert history it already learns. Run a few representative
@@ -326,16 +319,16 @@ selection to reproduce dense attention exactly.
 GLM-5.2's native MTP head drafts tokens that the main model verifies in one
 batched forward — 2.2–2.8 tokens/forward when it pays. Two hard-won rules ship
 as defaults: the MTP head must be **int8** (int4 heads collapse to 0–4%
-acceptance, [#8](https://github.com/JustVugg/nexdune/issues/8)), and draft and
+acceptance, [#8](https://github.com/NiranX-music/Nexdune/issues/8)), and draft and
 verify must compute **the same function** — `SPEC_PIN=1` pins both to one
-kernel family ([#163](https://github.com/JustVugg/nexdune/issues/163) is the
+kernel family ([#163](https://github.com/NiranX-music/Nexdune/issues/163) is the
 full forensic story). Grammar-forced drafts
 ([`GRAMMAR=file.gbnf`](docs/grammar-draft.md)) add ~free acceptance on
 constrained JSON output. Whether speculation is a net win depends on your
 cache temperature — measure, and use `DRAFT=0` when it doesn't pay.
 
 Verify batches can also opt into an **exact attention core** with
-`NEXDUNE_EXACT_VERIFY=1` ([#689](https://github.com/JustVugg/nexdune/issues/689)):
+`NEXDUNE_EXACT_VERIFY=1` ([#689](https://github.com/NiranX-music/Nexdune/issues/689)):
 the CPU MLA-absorb score and context dots accumulate integer products and round
 once, so a near-tie in a verify row resolves the same way on every host, at
 roughly 0.6x tok/s on a tiny oracle (the dot itself is ~5–7x the float loop).
@@ -354,16 +347,16 @@ live. Highlights from the [full benchmark tables](docs/benchmarks.md):
 
 - **6× RTX 5090, full residency:** 5.8–6.8 tok/s decode, TTFT ~13 s
   ([experiment log](docs/experiments/glm52-6x5090-2026-07-12.md));
-- **128 GB CPU-only desktop:** ~1.8 tok/s warm ([#200](https://github.com/JustVugg/nexdune/issues/200));
+- **128 GB CPU-only desktop:** ~1.8 tok/s warm ([#200](https://github.com/NiranX-music/Nexdune/issues/200));
 - **single RTX 5070 Ti laptop-class box:** 1.07 tok/s via the GPU-resident
-  pipeline ([#273](https://github.com/JustVugg/nexdune/issues/273));
+  pipeline ([#273](https://github.com/NiranX-music/Nexdune/issues/273));
 - **25 GB dev box:** 0.05–0.1 tok/s cold — the proven floor where this project
   started, and still the honest baseline.
 
 Quality is measured, not assumed: the int4 container's quantization cost and the
 scale-granularity/rotation ablations live in
 [docs/benchmarks.md](docs/benchmarks.md#quality-benchmark) and
-[#108](https://github.com/JustVugg/nexdune/issues/108)/[#81](https://github.com/JustVugg/nexdune/issues/81).
+[#108](https://github.com/NiranX-music/Nexdune/issues/108)/[#81](https://github.com/NiranX-music/Nexdune/issues/81).
 
 ## Get started
 
@@ -375,7 +368,7 @@ You need two things: **the program** (a few hundred KB) and **the model**
 
 **Download a prebuilt release** — Linux, macOS and Windows, no compiler needed.
 Take the archive for your platform from
-[Releases](https://github.com/JustVugg/nexdune/releases) and unpack it:
+[Releases](https://github.com/NiranX-music/Nexdune/releases) and unpack it:
 
 ```bash
 mkdir nexdune && tar xzf nexdune-v1.8.0-linux-x86_64.tar.gz -C nexdune && cd nexdune
@@ -392,7 +385,7 @@ dependencies.
 **Or build from source** — needs `gcc` (or clang) with OpenMP:
 
 ```bash
-git clone https://github.com/JustVugg/nexdune && cd nexdune/c
+git clone https://github.com/NiranX-music/Nexdune && cd nexdune/c
 ./setup.sh                                # checks gcc/OpenMP, builds, self-tests
 ```
 
@@ -416,10 +409,10 @@ MTP head, so speculative decoding stays off:
 > ⚠️ Use the **gs64** container above, not the older per-row int4 mirrors
 > (`mateogrgic/…`, `jlnsrk/…`): those measure ~9pp worse on quality and are the
 > root cause of the original think-mode loops and never-terminating generations
-> in [#455](https://github.com/JustVugg/nexdune/issues/455). The gs64 container
+> in [#455](https://github.com/NiranX-music/Nexdune/issues/455). The gs64 container
 > fixed those controlled per-row A/Bs, but it is not a general repetition or
 > EOS-starvation guard. The MTP head must also be **int8, not int4**
-> (int4 → 0% draft acceptance, [#8](https://github.com/JustVugg/nexdune/issues/8)):
+> (int4 → 0% draft acceptance, [#8](https://github.com/NiranX-music/Nexdune/issues/8)):
 > `ls -l <model>/out-mtp-*` — int8 (correct) is `3527131672 / 5366238584 / 1065950496`
 > as three files, or a single `out-mtp-00000.safetensors` of `9959321520` bytes
 > (the current upload of the recommended container ships it as one file: same
@@ -441,7 +434,7 @@ the model's `config.json`):
 
 > **What each one needs.** These differ a lot, and reading two of them together
 > has confused people into thinking the requirements contradict each other
-> ([#191](https://github.com/JustVugg/nexdune/issues/191)). They do not — they
+> ([#191](https://github.com/NiranX-music/Nexdune/issues/191)). They do not — they
 > are different models. **None of them needs a GPU.**
 >
 > | Model | Disk for the weights | RAM | GPU |
@@ -675,8 +668,6 @@ today its numbers come from a community of real machines. If it's useful to you:
 - ⭐ star the repo and share it;
 - 🐛 open issues with benchmark numbers from your hardware — datapoints move
   this project more than anything else;
-- 💬 join the [Discord community](https://discord.gg/RXV83nSZdk) to discuss
-  experiments, hardware results, and research directions;
 - 💬 reach out via GitHub issues to sponsor development or donate hardware.
 
 ## Repo layout
@@ -730,9 +721,9 @@ engine Makefile.
 
 ## Why "nexdune"
 
-The hummingbird weighs a few grams, hovers in place, and visits a thousand
-flowers a day. This engine keeps a 744-billion-parameter giant alive on
-hummingbird rations: 25 GB of RAM, twelve CPU cores, and a lot of disk patience.
+Nexdune connects storage, RAM, and VRAM into a single coherent streaming memory
+hierarchy — shifting weights across tiers like dunes, allowing frontier models
+to run on consumer hardware with zero compromises.
 
 ## Acknowledgements
 

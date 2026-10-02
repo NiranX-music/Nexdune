@@ -1,50 +1,54 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 168 168">
-  <rect width="168" height="168" rx="36" fill="#ffffff"/>
-  <g transform="translate(7 21)" shape-rendering="crispEdges">
-    <rect height="14" width="14" x="56" y="0" fill="#d75fd7"/>
-    <rect height="14" width="14" x="70" y="0" fill="#d75fd7"/>
-    <rect height="14" width="14" x="84" y="0" fill="#d75fd7"/>
-<rect height="14" width="14" x="42" y="14" fill="#d75fd7"/>
-    <rect height="14" width="14" x="56" y="14" fill="#d75fd7"/>
-    <rect height="14" width="14" x="70" y="14" fill="#d75fd7"/>
-    <rect height="14" width="14" x="84" y="14" fill="#d75fd7"/>
-    <rect height="14" width="14" x="98" y="14" fill="#d75fd7"/>
-    <rect height="14" width="14" x="140" y="14" fill="#5fd7d7"/>
-<rect height="14" width="14" x="56" y="28" fill="#d75fd7"/>
-    <rect height="14" width="14" x="70" y="28" fill="#d75fd7"/>
-    <rect height="14" width="14" x="84" y="28" fill="#d75fd7"/>
-    <rect height="14" width="14" x="98" y="28" fill="#d75fd7"/>
-    <rect height="14" width="14" x="126" y="28" fill="#5fd7d7"/>
-    <rect height="14" width="14" x="140" y="28" fill="#5fd7d7"/>
-<rect height="14" width="14" x="0" y="42" fill="#ff8700"/>
-    <rect height="14" width="14" x="14" y="42" fill="#ff8700"/>
-    <rect height="14" width="14" x="28" y="42" fill="#ff8700"/>
-    <rect height="14" width="14" x="42" y="42" fill="#ff8700"/>
-    <rect height="14" width="14" x="56" y="42" fill="#00afaf"/>
-    <rect height="14" width="14" x="70" y="42" fill="#00afaf"/>
-    <rect height="14" width="14" x="84" y="42" fill="#fff"/>
-    <rect height="14" width="14" x="98" y="42" fill="#00afaf"/>
-    <rect height="14" width="14" x="112" y="42" fill="#5fd7d7"/>
-    <rect height="14" width="14" x="126" y="42" fill="#5fd7d7"/>
-<rect height="14" width="14" x="56" y="56" fill="#00afaf"/>
-    <rect height="14" width="14" x="70" y="56" fill="#00afaf"/>
-    <rect height="14" width="14" x="84" y="56" fill="#00afaf"/>
-    <rect height="14" width="14" x="98" y="56" fill="#00afaf"/>
-    <rect height="14" width="14" x="112" y="56" fill="#00afaf"/>
-    <rect height="14" width="14" x="126" y="56" fill="#5fd7d7"/>
-    <rect height="14" width="14" x="140" y="56" fill="#5fd7d7"/>
-<rect height="14" width="14" x="70" y="70" fill="#00afaf"/>
-    <rect height="14" width="14" x="84" y="70" fill="#00afaf"/>
-    <rect height="14" width="14" x="98" y="70" fill="#00afaf"/>
-    <rect height="14" width="14" x="112" y="70" fill="#00afaf"/>
-    <rect height="14" width="14" x="126" y="70" fill="#5fd7d7"/>
-    <rect height="14" width="14" x="140" y="70" fill="#5fd7d7"/>
-<rect height="14" width="14" x="84" y="84" fill="#00afaf"/>
-    <rect height="14" width="14" x="98" y="84" fill="#00afaf"/>
-    <rect height="14" width="14" x="112" y="84" fill="#5fd7d7"/>
-    <rect height="14" width="14" x="126" y="84" fill="#5fd7d7"/>
-<rect height="14" width="14" x="98" y="98" fill="#00afaf"/>
-    <rect height="14" width="14" x="112" y="98" fill="#5fd7d7"/>
-<rect height="14" width="14" x="112" y="112" fill="#5fd7d7"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <linearGradient id="nex-grad-bg" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0a0d14"/>
+      <stop offset="100%" stop-color="#05070a"/>
+    </linearGradient>
+    <linearGradient id="nex-grad-primary" x1="64" y1="64" x2="448" y2="448" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#00f2fe"/>
+      <stop offset="50%" stop-color="#4facfe"/>
+      <stop offset="100%" stop-color="#6366f1"/>
+    </linearGradient>
+    <linearGradient id="nex-grad-dune" x1="120" y1="360" x2="380" y2="120" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#f59e0b"/>
+      <stop offset="50%" stop-color="#fbbf24"/>
+      <stop offset="100%" stop-color="#00f2fe"/>
+    </linearGradient>
+    <linearGradient id="nex-grad-glow" x1="256" y1="100" x2="256" y2="412" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#00f2fe" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#4facfe" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="nex-glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="16" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+
+  <!-- Base Rounded Container -->
+  <rect width="512" height="512" rx="112" fill="url(#nex-grad-bg)"/>
+  <rect width="510" height="510" x="1" y="1" rx="111" stroke="url(#nex-grad-primary)" stroke-width="2" stroke-opacity="0.3"/>
+
+  <!-- Ambient Glow Behind Monolith -->
+  <circle cx="256" cy="256" r="160" fill="url(#nex-grad-glow)" filter="blur(40px)"/>
+
+  <!-- The Nexus Monolith: Geometric 'N' & Dune Horizon -->
+  <g filter="url(#nex-glow)" transform="translate(0, 0)">
+    <!-- Left Pillar (Stream Column Alpha) -->
+    <path d="M128 376V156C128 142.745 138.745 132 152 132H184C197.255 132 208 142.745 208 156V376C208 389.255 197.255 400 184 400H152C138.745 400 128 389.255 128 376Z" 
+          fill="url(#nex-grad-primary)"/>
+
+    <!-- Right Pillar (Stream Column Omega) -->
+    <path d="M304 376V156C304 142.745 314.745 132 328 132H360C373.255 132 384 142.745 384 156V376C384 389.255 373.255 400 360 400H328C314.745 400 304 389.255 304 376Z" 
+          fill="url(#nex-grad-primary)"/>
+
+    <!-- Dynamic Nexus Diagonal Bridge (Zero-Copy MoE Router Vector) -->
+    <path d="M184 144L328 356C335 366.5 348 370 358 363L366 357C376 350 378 337 371 326.5L227 114C220 103.5 207 100 197 107L189 113C179 120 177 133 184 144Z" 
+          fill="url(#nex-grad-dune)"/>
+
+    <!-- Geometric Pulse Node: Point of Convergence (NiranX Core) -->
+    <circle cx="256" cy="235" r="14" fill="#ffffff" filter="drop-shadow(0 0 12px #00f2fe)"/>
+    
+    <!-- Horizon Dune Ridge Crest (Speed Wave) -->
+    <path d="M112 424C196 396 316 452 400 424" stroke="url(#nex-grad-dune)" stroke-width="8" stroke-linecap="round" stroke-opacity="0.8"/>
   </g>
 </svg>
