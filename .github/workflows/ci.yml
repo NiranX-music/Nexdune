@@ -1,0 +1,1323 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [dev, main]
+  push:
+    branches: [dev, main]
+
+# CI only reads the tree; no job here writes to the repo. Pin the token to
+# read-only so a compromised step (or action) cannot push, tag or release.
+permissions:
+  contents: read
+
+jobs:
+  engine:
+    name: Engine (Linux, CPU)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build nexdune + inkling
+        run: cd c && make nexdune inkling
+      - name: C test suite
+        run: cd c && make test-c
+
+  # Every engine, on every platform a release archive is built for. Before this,
+  # CI built nexdune + inkling on Linux only and kimi_k3 on nothing -- so the fact
+  # that inkling and kimi_k3 did not compile under msys2/UCRT64 at all was invisible
+  # for months, and binary releases silently shipped the GLM engine alone (#720).
+  # Each engine is built separately so one failure does not mask the others.
+  # The container image. Nothing built docker/Dockerfile.slim in CI before, so a
+  # rename or a moved file under c/ could break the image and only a user would
+  # find out -- the same gap the .mm and fuzz-rans paths had.
+  #
+  # Only Dockerfile.slim is built here, on purpose. docker/Dockerfile does
+  # `git clone` of the upstream repo (that is its point -- README's zero-setup
+  # path downloads that one file and needs no checkout), so building it in CI
+  # would test upstream/main rather than this PR. Its Dockerfile is linted for
+  # syntax instead.
+  docker:
+    name: Container image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the slim image
+        run: docker build -t nexdune:ci -f docker/Dockerfile.slim .
+      - name: The image actually runs
+        # Building is not the same as working: a missing COPY only shows up when
+        # the entrypoint tries to import what is not there. --version needs no
+        # model, so it exercises the launcher end to end without a 372 GB mount.
+        run: |
+          docker run --rm nexdune:ci --version
+          docker run --rm nexdune:ci --help > /dev/null
+          # The gateway has runtime modules that launcher-only commands do not
+          # import. Exercise that boundary so the advertised serve path cannot
+          # ship with a missing Python file.
+          docker run --rm --entrypoint python3 nexdune:ci -c \
+            "import openai_server; print('gateway imports')"
+      - name: The engine binary is in the image and is executable
+        run: docker run --rm --entrypoint /app/nexdune nexdune:ci --help 2>&1 | head -5 || true
+      - name: Lint both Dockerfiles
+        # docker/Dockerfile is not built here (see above) but it is still shipped
+        # and followed by users, so it gets checked for syntax at least.
+        uses: hadolint/hadolint-action@54c9adbab1582c2ef04b2016b760714a4bfde3cf # v3.1.0
+        with:
+          dockerfile: docker/Dockerfile
+          failure-threshold: error
+  # The C suite under AddressSanitizer + UndefinedBehaviorSanitizer.
+  #
+  # Before this the only sanitized code in CI was nothing at all: fuzz-rans has
+  # always built with ASan+UBSan but was never wired to a job, and it covers
+  # rans.h alone. The engine's pointer arithmetic, mmap/pread paths and worker
+  # threads had never been run under a sanitizer here.
+  #
+  # Leak detection is off on purpose -- the engines allocate the tensor index,
+  # parsed config and weight slabs once and use them until exit (st.h calls this
+  # out: "intentionally leaked ... one-time startup parsing"). Reporting those
+  # would bury the findings that matter under noise nobody intends to fix. The
+  # flags live in c/Makefile's test-asan target, not here, so the same command
+  # reproduces it locally.
+  sanitizers:
+    name: Sanitizers (ASan + UBSan)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: C suite under ASan + UBSan
+        run: make -C c test-asan
+      - name: rANS fuzz round-trip (ASan + UBSan)
+        # Already sanitized and already asserting byte identity across every
+        # compiled decode arm; it just had no job to run in.
+        run: make -C c fuzz-rans
+
+  # The Vulkan backend, COMPILED AND RUN. Before this job, `grep -rn "VK=1\|glslc\|vulkan"
+  # .github/workflows/` returned nothing: backend_vulkan.c and the four GLSL shaders were
+  # never built by any job, so they could be broken on dev and every check would stay green.
+  # Three Vulkan PRs were open at the time this landed, all written by people without the
+  # hardware and reviewed by reading the diff.
+  #
+  # Lavapipe (Mesa's software Vulkan) is what makes running it possible without a GPU. It
+  # says NOTHING about performance -- it is a CPU rasteriser and will be slower than the
+  # ordinary CPU path -- and it does not reproduce driver-specific behaviour, such as the
+  # VK_EXT_memory_budget under-reporting on RADV RX 6000 reported in #891. What it does
+  # prove is that the shaders compile, the device and queue negotiation works, the expert
+  # tier initialises, and the code path executes at all.
+  vulkan:
+    name: Vulkan (Lavapipe, software)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the Vulkan toolchain and a software driver
+        run: |
+          sudo apt-get update
+          # libvulkan-dev: headers + loader. glslc: compiles the .comp shaders to SPIR-V --
+          # neither is present on the runner by default, which is half of why VK=1 was
+          # never built here. mesa-vulkan-drivers carries Lavapipe (lvp).
+          sudo apt-get install -y --no-install-recommends \
+            libvulkan-dev glslc mesa-vulkan-drivers
+      - name: Build with VK=1
+        run: |
+          cd c
+          make nexdune VK=1
+          # The shaders are a separate failure mode from the C: glslc can reject a .comp
+          # while backend_vulkan.c compiles perfectly. Assert all four exist.
+          ls -l shaders/qmatmul.spv shaders/qmatmul_gate_up.spv \
+                shaders/attention_absorb.spv shaders/rmsnorm.spv
+          ldd nexdune | grep -q libvulkan || { echo "FAIL: built without linking libvulkan"; exit 1; }
+      - name: Initialise the backend against Lavapipe
+        run: |
+          cd c
+          # A config.json is enough to reach nexdune_vk_init(): it runs before any weight is
+          # read, so the run fails afterwards on the missing model and that is expected.
+          # What is asserted is the [VK] banner, not a successful load.
+          mkdir -p /tmp/vkprobe
+          echo '{"model_type":"glm_moe_dsa"}' > /tmp/vkprobe/config.json
+          VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.json \
+          NEXDUNE_NO_OMP_TUNE=1 NEXDUNE_VULKAN=1 SNAP=/tmp/vkprobe \
+            timeout 120 ./nexdune > vk.log 2>&1 || true
+          cat vk.log
+          # nexdune_vk_init() returns 0 and the engine exits 2 with "Vulkan backend
+          # unavailable" when the loader finds no device or the shaders are missing, so
+          # this line is the whole gate.
+          grep -q "\[VK\] ready:" vk.log || {
+            echo "FAIL: the Vulkan backend did not initialise"; exit 1; }
+          grep -q "expert tier active" vk.log || {
+            echo "FAIL: Vulkan initialised but the expert tier did not activate"; exit 1; }
+          echo "OK: shaders compiled, device negotiated, expert tier active"
+
+  musl:
+    name: musl libc (Alpine)
+    runs-on: ubuntu-latest
+    container: alpine:3.24
+    steps:
+      # #1430: nexdune did not compile against musl, because malloc_trim is a
+      # glibc extension guarded on __linux__ rather than on __GLIBC__. Nothing in
+      # CI compiled against anything but glibc, so the only way to find out was
+      # to be the user. One build leg closes that whole class.
+      - name: Toolchain
+        run: apk add --no-cache build-base linux-headers python3 git bash
+      - uses: actions/checkout@v4
+      - name: Build the engines musl can build
+        run: |
+          cd c
+          # ARCH=x86-64: the runner's -march=native is not the point here, the
+          # libc is. Engines that need glibc-only interfaces would fail loudly
+          # rather than be excluded quietly, which is the report we want.
+          make nexdune ARCH=x86-64
+          make olmoe ARCH=x86-64
+      - name: The RAM guard still trims where it can
+        run: |
+          cd c
+          # The fix skips malloc_trim on musl; on glibc it must still be called.
+          # Here we only assert the build has no reference to it, which is the
+          # half this leg can see.
+          if nm nexdune | grep -q malloc_trim; then
+            echo "FAIL: malloc_trim linked in a musl build"; exit 1
+          fi
+          echo "ok: no glibc-only symbol in the musl binary"
+
+  engines-all-platforms:
+    name: All engines (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            name: linux
+            shell: bash
+            v4: "1"
+          - os: macos-latest
+            name: macos
+            shell: bash
+            # arm64 macOS joined NEXDUNE_V4_SUPPORTED: compat.h carries the
+            # platform differences (fadvise/F_RDADVISE, O_DIRECT/F_NOCACHE)
+            # and the token-exact tiny oracle below is the acceptance gate.
+            v4: "1"
+
+          - os: windows-latest
+            name: windows
+            # GitHub shells are format strings: 'msys2 {0}', never bare 'msys2'.
+            shell: "msys2 {0}"
+            v4: "1"
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: ${{ matrix.shell }}
+    steps:
+      - uses: actions/checkout@v4
+      - if: matrix.os == 'windows-latest'
+        id: msys2
+        uses: msys2/setup-msys2@66cd2cce69caa17b53920067426061ca1de3a884 # v2
+        with:
+          msystem: UCRT64
+          update: false
+          path-type: inherit
+          install: >-
+            make
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-binutils
+      - if: matrix.os == 'macos-latest'
+        run: brew install libomp
+      # Keep the portable sibling list aligned with release packaging. DeepSeek
+      # V4 remains conditional because its amalgamated target is unsupported on
+      # one platform in this matrix.
+      # The hyphenated target is appended rather than folded into the loop
+      # because it must not run on macos.
+      - name: Build every engine
+        run: |
+          cd c
+          rc=0
+          ENGINES="nexdune glm53 inkling kimi_k3 olmoe qwen36 qwen38 deepseek_v41"
+          if [ "${{ matrix.v4 }}" = "1" ]; then ENGINES="$ENGINES deepseek-v4"; fi
+          for t in $ENGINES; do
+            echo "::group::$t"
+            make $t || { echo "FAILED: $t"; rc=1; }
+            echo "::endgroup::"
+          done
+          exit $rc
+      - name: "Environment shims: setenv is visible to getenv in-process"
+        run: |
+          cd c
+          # This is the one gate that has to run OFF Linux. compat.h's setenv
+          # used to write only the Win32 block, which getenv never reads, so
+          # the C suite on the Linux job could not see the defect at all.
+          make tests/test_compat_env
+          ./tests/test_compat_env
+      - name: "C tests that drive the engine through the environment"
+        run: |
+          cd c
+          # `make test-c` runs on the Linux leg only, so every test that sets an
+          # environment variable was unobservable on the platform whose shim it
+          # depends on. That is how fourteen of them ended up carrying a private
+          # _putenv_s helper (#1420, #1429). These two are the cheapest pair that
+          # actually exercises the shim through engine code.
+          for t in tests/test_omp_tune tests/test_qwen36_ctx; do
+            echo "::group::$t"
+            make $t
+            ./$t
+            echo "::endgroup::"
+          done
+      - if: matrix.os == 'macos-latest'
+        name: Build every Metal-capable engine with METAL=1
+        # `make <engine>` above builds the CPU path only: everything behind
+        # NEXDUNE_METAL is invisible to it. That is how #1150 survived a month --
+        # inkling.c kept calling nexdune_metal_moe_block with the pre-qgs
+        # signature from v1.6.0 onward and no job ever compiled the call.
+        # Compile-only by necessity: the runner's Apple Paravirtual device
+        # cannot execute Metal submissions (see the note below), but signature
+        # drift is a compile error, which is exactly what this catches.
+        run: |
+          cd c
+          rc=0
+          for t in nexdune inkling kimi_k3; do
+            echo "::group::$t METAL=1"
+            make clean >/dev/null 2>&1 || true
+            make $t METAL=1 || { echo "FAILED: $t METAL=1"; rc=1; }
+            echo "::endgroup::"
+          done
+          exit $rc
+      - if: matrix.os == 'macos-latest'
+        name: Metal backend tests
+        # The Metal backend suite is its own target (metal-test) and is not
+        # part of `make check`: TEST_BINS is derived from tests/test_*.$(EXE)
+        # rules, and backend_metal_test is built/run by the metal-test target
+        # itself. Nothing in CI exercised it until issue #940 shipped a
+        # compile error in it, so run it explicitly on the Apple Silicon
+        # runners.
+        # The runner's Apple Paravirtual device hangs on Metal submissions
+        # (observed: 47 min vs a 5-6 min normal run), so the test harness
+        # detects it and skips GPU execution with an explicit line; this
+        # timeout is the backstop that turns any residual hang into a red X.
+        timeout-minutes: 10
+        run: |
+          cd c
+          make metal-test
+
+      # macOS is the newest NEXDUNE_V4_SUPPORTED platform and the only one whose
+      # engine coverage lives solely in this job (Linux has the v4-tiny job in
+      # check.yml, Windows was first exercised at the release tag). The tiny
+      # oracle is the token-exactness gate: it fails on any numerical or I/O
+      # divergence, which is exactly what a platform port can break.
+      #
+      # The check target REGENERATES the fixture (--force) before comparing,
+      # so it needs the same pinned torch/transformers the Linux v4-tiny job
+      # installs -- without them the step dies in generation, not in the
+      # oracle (round 2 of this PR measured exactly that).
+      - uses: actions/setup-python@v5
+        if: matrix.os == 'macos-latest'
+        with:
+          python-version: '3.13'
+          cache: pip
+          cache-dependency-path: c/tools/requirements-deepseek-v4-tiny.txt
+      - name: Install pinned tiny-fixture dependencies (macOS)
+        if: matrix.os == 'macos-latest'
+        run: python -m pip install -r c/tools/requirements-deepseek-v4-tiny.txt
+      - name: DeepSeek V4 tiny oracle (macOS)
+        if: matrix.os == 'macos-latest'
+        run: make -C c deepseek-v4-tiny-check
+
+      # The Windows backend-DLL loader contract (c/tests/test_backend_loader.py)
+      # had no CI anywhere: the `python` job below is Linux-only, where these
+      # tests do not apply. They need no GPU and no HIP SDK — the fixtures are
+      # stub DLLs this job's MinGW gcc/objdump build on the fly.
+      #
+      # shell: pwsh overrides the job default so the tests run outside the MSYS2
+      # shell; MSYS2 is on PATH only so gcc/objdump/make are reachable for
+      # fixture compilation. The tests themselves are separator-agnostic (they
+      # normalise both sides before comparing), so neither interpreter choice nor
+      # the shape of the temp root can decide the outcome.
+      - name: Windows backend-loader contract tests (no GPU)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        env:
+          # Nothing here may reach a real GPU, runtime or backend.
+          NEXDUNE_CUDA: ''
+          NEXDUNE_GPU: ''
+          CUDA_DENSE: ''
+          NEXDUNE_HIP_RUNTIME_DIR: ''
+          HIP_PATH: ''
+        run: |
+          # ucrt64\bin for gcc/objdump AND usr\bin for make: without make, the
+          # host-matrix class skips at setUpClass and the run silently loses
+          # tests instead of failing.
+          $msys = "${{ steps.msys2.outputs.msys2-location }}"
+          $env:PATH = "$msys\ucrt64\bin;$msys\usr\bin;$env:PATH"
+          foreach ($v in 'NEXDUNE_CUDA','NEXDUNE_GPU','NEXDUNE_GPUS','CUDA_DENSE','CUDA_EXPERT_GB',
+                         'NEXDUNE_HIP_RUNTIME_DIR','HIP_PATH','ROCM_PATH','ROCM_HOME',
+                         'HIP_DEVICE_LIB_PATH','HSA_OVERRIDE_GFX_VERSION',
+                         'HIP_VISIBLE_DEVICES','CUDA_VISIBLE_DEVICES') {
+            Remove-Item "env:$v" -ErrorAction SilentlyContinue
+          }
+          python -c "import sys, os, tempfile; print('python', sys.executable); print('os.sep', repr(os.sep)); print('tmp', tempfile.gettempdir())"
+          gcc --version | Select-Object -First 1
+          make --version | Select-Object -First 1
+          cd c
+          $out = python -m unittest tests.test_backend_loader -v 2>&1 | Out-String
+          $out
+          if ($LASTEXITCODE -ne 0) { throw "loader contract tests failed" }
+          # A missing toolchain shows up as setUpClass skips, not failures, so a
+          # green run with a shrunken test count would hide the real problem.
+          if ($out -notmatch '(?m)^Ran (\d+) tests') { throw "could not parse the test count" }
+          $ran = [int]$Matches[1]
+          $skipped = ([regex]::Matches($out, '\.\.\. skipped')).Count
+          "ran=$ran skipped=$skipped"
+          if ($skipped -gt 0) { throw "$skipped loader test(s) skipped: the Windows toolchain is incomplete" }
+
+  engine-cuda-syntax:
+    name: CUDA syntax check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install CUDA toolkit (compiler only)
+        uses: Jimver/cuda-toolkit@4bd727d5619dc6fa323b1e76c3aa5dca94f5ec6d # v0.2.19
+        with:
+          # v0.2.19's version table stops at 12.6.2 — 12.6.3 fails the install
+          # step with "Version not available" before nvcc is ever reached.
+          cuda: '12.6.2'
+          method: network
+          sub-packages: '["nvcc"]'
+      - name: Compile backend_cuda.cu (syntax only, no GPU)
+        run: |
+          cd c
+          # NOT `nvcc ... | head -40`: a pipeline exits with the status of its
+          # LAST command, so head's 0 masked every nvcc error and the job could
+          # only ever be green. A check that cannot fail is worse than no check —
+          # it buys false confidence in the one file nothing else compiles.
+          nvcc -O2 -std=c++17 -arch=sm_80 -c backend_cuda.cu -o /dev/null \
+            -Xcompiler=-Wall,-Wextra
+          echo "CUDA syntax check passed"
+      - name: Compile backend_cuda_ink.cu (syntax only, no GPU)
+        run: |
+          cd c
+          # inkling's own CUDA backend (bf16 residents + int4 expert GEMM); same
+          # no-pipeline rule as above so a compile error can actually fail the job.
+          nvcc -O2 -std=c++17 -arch=sm_80 -c backend_cuda_ink.cu -o /dev/null \
+            -Xcompiler=-Wall,-Wextra
+          echo "inkling CUDA syntax check passed"
+
+  qwen36-tiny-check:
+    name: Qwen3.6 tiny oracle (token-exact + ASan/UBSan)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: c/tools/oracle-requirements.txt
+      - name: Install torch (CPU) + transformers
+        run: pip install -r c/tools/oracle-requirements.txt
+      - name: Tiny Qwen3.6-shaped fixture + full-hybrid oracle
+        run: |
+          cd c
+          # Same layout as the 35B model (10 x (3 x DeltaNet -> MoE, 1 x Attention
+          # -> MoE)) at toy dimensions, so the converter and the engine treat it
+          # exactly like the real one. --mode full exercises BOTH layer kinds;
+          # attention_only would leave the DeltaNet path untested.
+          # The reference comes from make_qwen36_tiny.py, not make_qwen36_oracle.py:
+          # the oracle encodes a text prompt through AutoTokenizer.from_pretrained(),
+          # and this fixture is synthetic -- weights, no tokenizer. The tiny script
+          # already has the model in memory and generates greedily from fixed ids.
+          # --ref-mode full leaves BOTH layer kinds active; the default
+          # attention_only replaces the 30 DeltaNet layers with identity, which is
+          # what Phase 1 computed and would leave three quarters of the engine
+          # untested.
+          python3 tools/make_qwen36_tiny.py --out qwen36_tiny --ref-mode full \
+                  --emit-ref qwen36_tiny/ref_full.json
+          # ebits=8 keeps the expert quantization error below anything that could
+          # flip a greedy argmax here -- measured. The DENSE weights are the ones
+          # that matter: the engine quantizes them to int8 by default, the torch
+          # reference does not, and that alone cost 7 of 16 tokens. The runs below
+          # therefore set NEXDUNE_DENSE_I8=0, which is what the accuracy A/B in
+          # 07_Tests uses for the same reason. Without it this gate compares two
+          # different models and reddens on the luck of the draw.
+          python3 tools/convert_qwen36.py --model qwen36_tiny --out qwen36_tiny_c --ebits 8
+      - name: Token-exact against the oracle, at several cache capacities
+        run: |
+          cd c
+          make qwen36
+          # cap=1 evicts on every routed expert, which is where slot bookkeeping
+          # breaks; cap=8 never would. That is not hypothetical here: the
+          # in-flight eviction fallback this engine inherited was exactly such a
+          # bug, and it only shows when cap is smaller than the number of loads
+          # in flight. The engine exits non-zero on any token mismatch.
+          for cap in 1 2 8; do
+            echo "::group::cap=$cap"
+            NEXDUNE_DENSE_I8=0 SNAP=qwen36_tiny_c \
+              ./qwen36 "$cap" 8 qwen36_tiny/ref_full.json
+            echo "::endgroup::"
+          done
+      - name: Qwen3.8-2.4T geometry, fused experts + mtp head (converter contract + token-exact)
+        run: |
+          cd c
+          # The 2.4T checkpoint declares the same model_type as the 35B and
+          # resolves to this engine (#1045). Its structural numbers at toy
+          # widths: 92 layers / interval 4 / 512 experts top-10 / 16:1 attention
+          # heads / 8:1 DeltaNet heads. The shard is rewritten into the layout
+          # the real checkpoints ship -- fused expert tensors and an mtp.* head
+          # -- so the converter is seen splitting the one and skipping the other
+          # ON PURPOSE (it must say so), not by never selecting them.
+          # --seed 3: the default seed collapses this geometry's reference to a
+          # single repeated token, which a shape error could still reproduce.
+          python3 tools/make_qwen36_tiny.py --geometry qwen38-2p4t --seed 3 \
+                  --out qwen38_2p4t_tiny --ref-mode full \
+                  --emit-ref qwen38_2p4t_tiny/ref_full.json
+          python3 tools/convert_qwen36.py --model qwen38_2p4t_tiny \
+                  --out qwen38_2p4t_tiny_c --ebits 8 | tee convert_2p4t.log
+          grep -q "skipping 19 \`mtp.\*\` tensor" convert_2p4t.log
+          grep -q "tensor kinds: 1587 in 92 layers, 3 globals" convert_2p4t.log
+          # the container must not carry the head it skipped
+          python3 - <<'EOF'
+          import glob
+          from safetensors import safe_open
+          for path in glob.glob("qwen38_2p4t_tiny_c/*.safetensors"):
+              with safe_open(path, "pt") as f:
+                  assert not [k for k in f.keys() if k.startswith("mtp.")], path
+          EOF
+          for cap in 1 2 512; do
+            echo "::group::2.4T geometry cap=$cap"
+            NEXDUNE_DENSE_I8=0 SNAP=qwen38_2p4t_tiny_c \
+              ./qwen36 "$cap" 8 qwen38_2p4t_tiny/ref_full.json
+            echo "::endgroup::"
+          done
+      - name: Same run under ASan + UBSan
+        run: |
+          cd c
+          # Token-exactness alone would not have caught the config-driven heap
+          # overflows this engine shipped with: they do not necessarily change
+          # the output. The sanitizers are the half of this gate that watches
+          # memory, and PILOT=1 puts concurrent expert loads against the cache
+          # so the slot paths are exercised, not just walked past.
+          #
+          # This step asserts MEMORY SAFETY, not token-exactness -- the three
+          # runs above already own that. -fsanitize changes inlining and
+          # vectorization, so this is a differently-compiled binary, and float
+          # reassociation can flip a token wherever the margin is thin. Demanding
+          # exactness from it conflates two goals and made this job red on a
+          # docs-only commit: the normal build matched 16/16, the sanitizer build
+          # did not. So: run it, ignore a token mismatch, fail on any sanitizer
+          # diagnostic.
+          make clean >/dev/null 2>&1 || true
+          make qwen36 EXTRA_CFLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -g"
+          for fx in qwen36_tiny qwen38_2p4t_tiny; do
+            ASAN_OPTIONS=detect_leaks=0 UBSAN_OPTIONS=print_stacktrace=1 \
+              NEXDUNE_DENSE_I8=0 SNAP=${fx}_c PILOT=1 WIDE=2 \
+              ./qwen36 1 8 $fx/ref_full.json > san.log 2>&1 || true
+            if grep -qE "ERROR: AddressSanitizer|runtime error:" san.log; then
+              echo "FAIL: sanitizer diagnostic under PILOT ($fx)"; cat san.log; exit 1
+            fi
+            echo "sanitizers clean ($fx):"; grep -E "Matching tokens" san.log || true
+          done
+      - name: KV prefix reuse is token-identical (serve, several turns)
+        run: |
+          cd c
+          # Reusing a previous turn's state must change the timing and nothing
+          # else. A wrong reuse length does not crash: it answers from another
+          # conversation's state and still reads plausibly, so this is the only
+          # gate that would catch it. The sanitizer step above rebuilt the
+          # engine, so rebuild the normal one first.
+          make clean >/dev/null 2>&1 || true
+          make qwen36
+          QWEN36_TINY=qwen36_tiny_c python3 -m unittest -v tests.test_qwen36_prefix_serve
+      - name: Expert kernel A/B on an int4 gs64 fixture (old path vs expert_ffn.h, byte-identical ids)
+        run: |
+          cd c
+          make clean >/dev/null 2>&1 || true
+          make qwen36
+          # The int8 gate above never enters the shared kernel (it needs an int4
+          # gs=64 container with widths that are multiples of 64: the default
+          # tiny has inter=32). This fixture does. The reference is the same
+          # torch model, but what this step asserts is not oracle agreement
+          # (int4 experts drift from f32 by design): it is that the kernel and
+          # the unpack-to-int8 path it replaces emit the SAME ids at every cap,
+          # including cap=1 (one expert resident: the per-pair cut) and cap=16
+          # (the whole prompt in one run).
+          python3 tools/make_qwen36_tiny.py --out qwen36_tiny64 --ref-mode full --inter 64 \
+                  --emit-ref qwen36_tiny64/ref_full.json
+          python3 tools/convert_qwen36.py --model qwen36_tiny64 --out qwen36_tiny64_c --ebits 4 --gs 64
+          for cap in 1 2 8 16; do
+            for k in 0 1; do
+              QWEN_EXPERT_KERNEL=$k NEXDUNE_DENSE_I8=0 SNAP=qwen36_tiny64_c \
+                ./qwen36 "$cap" 4 qwen36_tiny64/ref_full.json > ab_${cap}_$k.log 2>&1 || true
+              grep -E "^C engine" ab_${cap}_$k.log > ids_${cap}_$k.txt
+            done
+            grep -q "expert kernel: planar int4" ab_${cap}_1.log || { echo "FAIL: kernel did not engage at cap=$cap"; cat ab_${cap}_1.log; exit 1; }
+            grep -q "expert kernel: planar int4" ab_${cap}_0.log && { echo "FAIL: QWEN_EXPERT_KERNEL=0 still engaged the kernel"; exit 1; }
+            test -s ids_${cap}_1.txt || { echo "FAIL: no ids at cap=$cap"; cat ab_${cap}_1.log; exit 1; }
+            cmp ids_${cap}_0.txt ids_${cap}_1.txt || { echo "FAIL: ids differ at cap=$cap"; cat ids_${cap}_0.txt ids_${cap}_1.txt; exit 1; }
+            echo "cap=$cap: identical ($(cat ids_${cap}_1.txt))"
+          done
+          make tests/test_expert_ffn && ./tests/test_expert_ffn
+      - name: Mixed expert layout (int4 gs64 gate/up, int8 down) loads and is cap-independent
+        run: |
+          cd c
+          # The #1370 experiment knob: one slab per expert with int4 gate/up and int8
+          # down (2*inter*hidden bytes). The engine must tell it apart from int4 and
+          # int8 by size, read every matrix in its own format, and give the same ids
+          # at every cache capacity (cap=1 recycles the single slot after each expert,
+          # which is where a wrong slab offset would show). The ids are not compared to
+          # the torch oracle: int4 gate/up drift from f32 by design, as in the A/B above.
+          python3 tools/convert_qwen36.py --model qwen36_tiny64 --out qwen36_tiny64_d8 --ebits 4 --gs 64 --down-bits 8
+          python3 - <<'PY'
+          import json; m = json.load(open("qwen36_tiny64_d8/qwen36_meta.json"))
+          assert m["expert_down_bits"] == 8 and m["expert_down_gs"] == 0 and m["expert_gs"] == 64, m
+          PY
+          for cap in 1 2 8; do
+            NEXDUNE_DENSE_I8=0 SNAP=qwen36_tiny64_d8 ./qwen36 "$cap" 4 qwen36_tiny64/ref_full.json > mixed_$cap.log 2>&1 || true
+            grep -q "expert format on disk: int4 gate/up + int8 down" mixed_$cap.log || { echo "FAIL: mixed layout not detected at cap=$cap"; cat mixed_$cap.log; exit 1; }
+            grep -E "^C engine" mixed_$cap.log > mixed_ids_$cap.txt
+            test -s mixed_ids_$cap.txt || { echo "FAIL: no ids at cap=$cap"; cat mixed_$cap.log; exit 1; }
+          done
+          cmp mixed_ids_1.txt mixed_ids_8.txt && cmp mixed_ids_2.txt mixed_ids_8.txt || { echo "FAIL: ids differ across caps"; cat mixed_ids_*.txt; exit 1; }
+          echo "mixed layout: identical ids at cap 1/2/8 ($(cat mixed_ids_8.txt))"
+          # NEXDUNE_CUDA=1 on a mixed container is refused with a line, the CPU path stands
+          NEXDUNE_CUDA=1 NEXDUNE_DENSE_I8=0 SNAP=qwen36_tiny64_d8 ./qwen36 8 4 qwen36_tiny64/ref_full.json > mixed_cuda.log 2>&1 || true
+          grep -q "NEXDUNE_CUDA=1 ignored: the VRAM expert tier does not take the mixed layout" mixed_cuda.log || { echo "FAIL: tier refusal line missing"; cat mixed_cuda.log; exit 1; }
+      - name: A malformed container is refused, not read
+        run: |
+          cd c
+          # The case ASan caught in review: config.json and qwen36_meta.json ship
+          # in the same container and disagreed on the layer count, so is_attn was
+          # sized from one and written from the other. Reproduced without the
+          # guard as a heap-buffer-overflow WRITE at load_meta; with it the engine
+          # refuses. A well-formed fixture cannot cover this, which is why it gets
+          # its own step -- and it asserts the REFUSAL, so a guard that silently
+          # stops guarding fails here.
+          cp -r qwen36_tiny_c qwen36_tiny_bad
+          python3 - <<'PY'
+          import json
+          p = "qwen36_tiny_bad/config.json"
+          cfg = json.load(open(p))
+          cfg["num_hidden_layers"] = 4          # meta says 8
+          json.dump(cfg, open(p, "w"))
+          PY
+          if NEXDUNE_DENSE_I8=0 SNAP=qwen36_tiny_bad ./qwen36 8 8 \
+               qwen36_tiny/ref_full.json > bad.log 2>&1; then
+            echo "FAIL: engine accepted a container whose two config files disagree"
+            cat bad.log; exit 1
+          fi
+          grep -q "config.json says 4 layers" bad.log || {
+            echo "FAIL: refused, but not for the reason under test"; cat bad.log; exit 1; }
+          echo "refused as expected:"; grep '^\[cfg\]' bad.log
+      - name: Brain and Profile reach the dashboard
+        run: |
+          cd c
+          # The oracle fixture has no tokenizer (weights only); `nexdune serve`
+          # needs one to encode the prompt. The byte tokenizer is test data
+          # sized to the fixture's vocab, the same as the GLM-5.3 gate uses.
+          python3 tools/make_edge_tiny_tokenizer.py --vocab-size 320 qwen36_tiny_c
+          make qwen36 >/dev/null
+          NEXDUNE_QWEN36_FIXTURE=qwen36_tiny_c python3 -m unittest -v tests.test_qwen36_dashboard
+      - name: "The expert format probe reads int8 as int8 and int4 as int4 (#1331)"
+        run: |
+          cd c
+          # #1331 was the CUDA tier receiving fmt=4 for an int8 container: budget
+          # reserved, zero promotions. The probe is decided from the on-disk
+          # size of the first expert and printed once; pin it on both formats
+          # without a GPU. The int4 run is not held to token-exactness here.
+          SNAP=qwen36_tiny_c ./qwen36 1 8 qwen36_tiny/ref_full.json 2> probe8.log >/dev/null || true
+          grep -q 'expert format on disk: int8' probe8.log || { echo "FAIL: int8 container probed as"; grep 'expert format' probe8.log; exit 1; }
+          python3 tools/convert_qwen36.py --model qwen36_tiny --out qwen36_tiny_c4 --ebits 4 >/dev/null
+          SNAP=qwen36_tiny_c4 ./qwen36 1 4 qwen36_tiny/ref_full.json 2> probe4.log >/dev/null || true
+          grep -q 'expert format on disk: int4' probe4.log || { echo "FAIL: int4 container probed as"; grep 'expert format' probe4.log; exit 1; }
+          echo "probe: int8 -> fmt=1, int4 -> fmt=4"
+
+  olmoe-tiny-check:
+    name: OLMoE tiny oracle (token-exact + dashboard HITS)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: c/tools/oracle-requirements.txt
+      - name: Install torch (CPU) + transformers
+        run: pip install -r c/tools/oracle-requirements.txt
+      - name: Tiny OLMoE checkpoint, converted
+        run: |
+          cd c
+          # 4 layers x 8 experts at toy dimensions, greedy reference from the
+          # HF model in ref_olmoe.json. The converter is the real one.
+          python3 tools/make_olmoe_tiny.py --output olmoe_tiny
+          python3 tools/convert_olmoe_merged.py --model olmoe_tiny --out olmoe_tiny_c
+          # weights only: serve mode needs a tokenizer to encode the prompt
+          python3 tools/make_edge_tiny_tokenizer.py --vocab-size 128 olmoe_tiny_c
+      - name: Token-exact against the reference
+        run: |
+          cd c
+          make olmoe
+          SNAP=olmoe_tiny_c ./olmoe 8 8 olmoe_tiny/ref_olmoe.json | tee oracle.log
+          # the engine prints the score and exits 0 either way: the gate is here
+          grep -qE 'Matching tokens: ([0-9]+)/\1$' oracle.log
+      - name: "Cache cap: the sentinel takes the budget, an explicit cap is left alone"
+        run: |
+          cd c
+          # The cap used to be a constant 8 slots per layer whenever nobody
+          # chose one (#1443). It is now derived from the RAM budget, and the
+          # derivation needs a real container to size: this is the job that has
+          # one.
+          NEXDUNE_OLMOE_FIXTURE=olmoe_tiny_c python3 -m unittest -v tests.test_olmoe_cap_budget
+      - name: "Brain tab: HITS after every turn, on the grid EMAP declared"
+        run: |
+          cd c
+          OLMOE_TINY=olmoe_tiny_c python3 -m unittest -v tests.test_olmoe_dashboard_hits
+      - name: "Over-long prompt: CONTEXT_EXCEEDED, so the gateway answers 400"
+        run: |
+          cd c
+          NEXDUNE_OLMOE_FIXTURE=olmoe_tiny_c python3 -m unittest -v tests.test_olmoe_context_exceeded
+      - name: KV prefix reuse is token-identical (serve, several turns)
+        run: |
+          cd c
+          # Same contract as the Qwen3.6 job runs, from the same harness: a
+          # reused prefix must produce exactly what a cold engine produces for
+          # the same prompt. Wrong reuse is silent, so the gate is the only
+          # thing between it and a user.
+          OLMOE_TINY=olmoe_tiny_c python3 -m unittest -v tests.test_olmoe_prefix_serve
+
+  dsv41-tiny-check:
+    name: DeepSeek V4.1 tiny oracle (engram + DSA + fp4 experts + vision)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: c/tools/oracle-requirements.txt
+      - name: Install torch (CPU) + sympy + Pillow
+        run: |
+          pip install -r c/tools/oracle-requirements.txt
+          pip install sympy pillow
+      - name: Tiny V4.1-shaped container and its reference
+        run: |
+          cd c
+          # The same tensor names, dtypes and block-scale conventions as the released
+          # checkpoint at toy dimensions, so the engine reads the real format: fp8 dense
+          # with 32x32 ue8m0 tiles, fp4 experts with per-32 group scales, an fp8 engram
+          # table read row by row, and a vision tower.
+          python3 tools/make_dsv41_tiny.py --out dsv41_tiny --emit-ref dsv41_tiny/ref.json
+      - name: Token-exact against the reference, at several cache capacities
+        run: |
+          cd c
+          make deepseek_v41
+          # cap=1 evicts on every routed expert, which is where slot bookkeeping breaks;
+          # cap=8 never would. The engine exits non-zero on any token mismatch, and on a
+          # vision tower that drifts from its reference rows.
+          for cap in 1 2 8; do
+            echo "::group::cap=$cap"
+            SNAP=dsv41_tiny ./deepseek_v41 "$cap" dsv41_tiny/ref.json
+            echo "::endgroup::"
+          done
+      - name: "Multi-SSD mirror and O_DIRECT change nothing about the answer"
+        run: |
+          cd c
+          # A replica answers the same bytes: the same container in a second directory
+          # must produce the same token stream, on the primary and through the mirror,
+          # with the O_DIRECT window and with the buffered path it replaces. Routing an
+          # expert to a drive is an I/O decision and must not be visible downstream.
+          mkdir -p dsv41_mirror
+          cp dsv41_tiny/model.safetensors dsv41_mirror/
+          SNAP=dsv41_tiny ./deepseek_v41 8 dsv41_tiny/ref.json > primary.txt 2>/dev/null
+          SNAP=dsv41_tiny NEXDUNE_MODEL_MIRROR=dsv41_mirror ./deepseek_v41 8 dsv41_tiny/ref.json > mirror.txt 2>/dev/null
+          SNAP=dsv41_tiny NEXDUNE_MODEL_MIRROR=dsv41_mirror V41_DIRECT=0 ./deepseek_v41 8 dsv41_tiny/ref.json > buffered.txt 2>/dev/null
+          cmp primary.txt mirror.txt
+          cmp primary.txt buffered.txt
+          # NEXDUNE_MODEL_DIRS splits the container as DISTINCT shards -- no second copy,
+          # which is the only multi-drive layout most people can build out of a 510 GB
+          # checkpoint. The shards move; the answer must not.
+          mkdir -p dsv41_split_meta dsv41_split_shard
+          cp dsv41_tiny/config.json dsv41_tiny/tokenizer.json dsv41_tiny/dsv41_engram.json dsv41_split_meta/
+          cp dsv41_tiny/model.safetensors dsv41_split_shard/
+          SNAP=dsv41_split_meta NEXDUNE_MODEL_DIRS=dsv41_split_shard ./deepseek_v41 8 dsv41_tiny/ref.json > split.txt 2>split.err
+          cmp primary.txt split.txt
+          grep -q "\[SPLIT\] model across 2 dir(s)" split.err
+          # A copy that is not byte-identical is not a replica: it is refused, and the
+          # run stays on the primary rather than reading someone else's offsets.
+          mkdir -p dsv41_divergent
+          python3 - <<'PY'
+          import pathlib
+          src = pathlib.Path("dsv41_tiny/model.safetensors")
+          data = bytearray(src.read_bytes())
+          data[8] ^= 0x01        # inside the safetensors header
+          pathlib.Path("dsv41_divergent/model.safetensors").write_bytes(bytes(data))
+          PY
+          SNAP=dsv41_tiny NEXDUNE_MODEL_MIRROR=dsv41_divergent ./deepseek_v41 8 dsv41_tiny/ref.json > divergent.txt 2>divergent.err
+          cmp primary.txt divergent.txt
+          grep -q "header differs from the primary copy" divergent.err
+      - name: KV prefix reuse (opt-in here) and the resumed-prefill exactness
+        run: |
+          cd c
+          # Two gates in one file. The first is exactness and is ours: a prefill
+          # that resumes mid-sequence must compute what a cold prefill computes,
+          # which is what the index-key schedule fix is for. The second is the
+          # shared contract, minus the one scenario this engine cannot satisfy --
+          # a prefix holding generated positions, which attend differently from
+          # prefilled ones by the vendor's own design. The override says so.
+          DSV41_TINY=dsv41_tiny python3 -m unittest -v tests.test_dsv41_prefix_serve
+      - name: "A prompt longer than one block, so the block boundary is crossed"
+        run: |
+          cd c
+          # Attention projects a block of positions at a time and the MoE routes one,
+          # both capped at 32. The default fixture's prompt is eight tokens and never
+          # reaches that cap, so a forty-token one is built as well: it crosses the
+          # boundary in both, and has to stay token-exact anyway.
+          python3 tools/make_dsv41_tiny.py --out dsv41_long --emit-ref dsv41_long/ref.json \
+            --prompt-len 40 --max-new 6
+          for cap in 2 8; do
+            echo "::group::long prompt, cap=$cap"
+            SNAP=dsv41_long ./deepseek_v41 "$cap" dsv41_long/ref.json
+            echo "::endgroup::"
+          done
+      - name: The published index cache is the vendor's, not the tidy one
+        run: |
+          cd c
+          # model.py republishes shared_attn.index_k only when a layer completes a
+          # compression group, so a decode step with an incomplete group scores against
+          # whichever cache was published last. That is the released behaviour and every
+          # number for this model was produced with it; V41_INDEX_OWNER=1 is the reading
+          # the architecture implies, and it is a DIFFERENT model. Assert they differ, so
+          # nobody "fixes" the default by accident.
+          if SNAP=dsv41_tiny V41_INDEX_OWNER=1 ./deepseek_v41 8 dsv41_tiny/ref.json > /dev/null 2>&1; then
+            echo "FAIL: V41_INDEX_OWNER=1 reproduced the vendor's tokens; one of the two"
+            echo "      paths is not doing what its comment says"
+            exit 1
+          fi
+          echo "the two index-key policies differ, as documented"
+      - name: "DSpark: a verified draft is the token sequential decode would have given"
+        run: |
+          cd c
+          # The fixture's draft head is random, so nothing it proposes would ever be
+          # accepted and the verification path would never run. V41_SPEC_FORCE drafts
+          # the reference's own tokens instead: 1 accepts the whole block, 2 corrupts
+          # the last draft so a round is rejected part way and the rollback runs, 3
+          # keeps the head's drafts, which is what serving does. All three have to
+          # reproduce the reference token for token, at any cache capacity.
+          for force in 1 2 3; do
+            for cap in 1 8; do
+              echo "::group::V41_SPEC_FORCE=$force cap=$cap"
+              SNAP=dsv41_tiny V41_DSPARK=1 V41_SPEC_FORCE=$force ./deepseek_v41 "$cap" dsv41_tiny/ref.json
+              echo "::endgroup::"
+            done
+          done
+          # and with only part of the block verified, which is a different rollback
+          SNAP=dsv41_tiny V41_DSPARK=1 V41_SPEC_FORCE=2 V41_DSPARK_MAX=1 ./deepseek_v41 8 dsv41_tiny/ref.json
+      - name: "Brain tab: EMAP after READY and STAT, HITS after every turn"
+        run: |
+          cd c
+          NEXDUNE_DSV41_FIXTURE=dsv41_tiny python3 -m unittest -v tests.test_dsv41_dashboard
+      - name: "Serving: an image changes the answer, a draft does not"
+        run: |
+          cd c
+          NEXDUNE_DSV41_FIXTURE=dsv41_tiny python3 -m unittest -v \
+            tests.test_dsv41_image_serve tests.test_dsv41_dspark_serve
+      - name: "Tool calling: the checkpoint's own encoding cases, byte for byte"
+        run: |
+          cd c
+          # no engine and no fixture here: the mock speaks the SERVE protocol, and the
+          # vendor's encoding cases are checked into tests/fixtures
+          python3 -m unittest -v tests.test_openai_tools_v41_e2e
+
+  qwen38-tiny-check:
+    name: Qwen3.8 tiny oracle (GDN + QSA + PLE + MoE)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: c/tools/requirements-qwen38-tiny.txt
+      - name: Install pinned Qwen4-Exp oracle dependencies
+        run: pip install -r c/tools/requirements-qwen38-tiny.txt
+      - name: Generate the upstream text fixture and run the token-and-logit oracle
+        run: make -C c qwen38-tiny-check
+      - name: Routed experts as the release ships them (FP8 shards), then the engine on the fake CUDA tier
+        run: make -C c qwen38-tiny-fp8-check qwen38-tier-engine-check
+      - name: Repeat the eviction path under ASan and UBSan
+        run: |
+          cd c
+          make -B qwen38 EXTRA_CFLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer -g"
+          ASAN_OPTIONS=detect_leaks=0 UBSAN_OPTIONS=print_stacktrace=1 \
+            OMP_NUM_THREADS=2 SNAP=./qwen38_tiny \
+            ./qwen38 1 8 ./qwen38_tiny/ref.json > qwen38-san.log 2>&1
+          if grep -qE "ERROR: AddressSanitizer|runtime error:" qwen38-san.log; then
+            cat qwen38-san.log
+            exit 1
+          fi
+          grep -q "Matching tokens: 8/8" qwen38-san.log
+      - name: Refuse config and tensor-shape disagreement
+        run: |
+          cd c
+          cp -r qwen38_tiny qwen38_tiny_bad
+          python3 - <<'PY'
+          import json
+          path = "qwen38_tiny_bad/config.json"
+          config = json.load(open(path, encoding="utf-8"))
+          config["hc_count"] = 5
+          json.dump(config, open(path, "w", encoding="utf-8"))
+          PY
+          if SNAP=./qwen38_tiny_bad ./qwen38 1 8 ./qwen38_tiny/ref.json > qwen38-bad.log 2>&1; then
+            echo "FAIL: malformed Qwen3.8 container was accepted"
+            cat qwen38-bad.log
+            exit 1
+          fi
+          grep -qE "elements, expected|gated residual dimensions" qwen38-bad.log
+      - name: "Brain tab: EMAP after READY and STAT, HITS after every turn"
+        run: |
+          cd c
+          # the oracle fixture has no tokenizer; serve mode needs one
+          python3 tools/make_edge_tiny_tokenizer.py --vocab-size "$(python3 -c 'import json;print(json.load(open("qwen38_tiny/config.json"))["vocab_size"])')" qwen38_tiny
+          make qwen38 >/dev/null
+          QWEN38_TINY=qwen38_tiny python3 -m unittest -v tests.test_qwen38_dashboard tests.test_qwen38_brio
+          python3 tools/make_edge_tiny_tokenizer.py --vocab-size 64 qwen38_tiny_fp8
+          QWEN38_TINY=qwen38_tiny_fp8 python3 -m unittest -v tests.test_qwen38_brio
+
+  inkling-oracle:
+    name: Inkling oracle (token-exact vs transformers)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: c/tools/oracle-requirements.txt
+      - name: Install torch (CPU) + transformers
+        run: pip install -r c/tools/oracle-requirements.txt
+      - name: Build inkling
+        run: cd c && make inkling
+      - name: Tiny-model fixture + token-exact oracle (f32, bit-exact experts)
+        run: |
+          cd c
+          # Random-init InklingForCausalLM via HF transformers, then the C engine
+          # reproduces it token-for-token. bits=0 keeps experts f32 (bit-exact
+          # forward); the greedy pass exits non-zero on any mismatch, so this
+          # gate fails the moment a shared-code change regresses the engine.
+          python3 tools/make_tiny_inkling.py tiny_inkling
+          # The oracle at several cache capacities (#784): a capacity-1 cache
+          # exercises eviction on every routed expert, which is where a slot
+          # bookkeeping bug shows up and a capacity-8 run never would.
+          for cap in 1 2 8; do
+            SNAP=tiny_inkling ./inkling "$cap" 0 tiny_inkling/ref_inkling.json
+          done
+      - name: KV prefix reuse is token-identical (serve, two turns)
+        run: |
+          cd c
+          # Reusing a previous turn's attention state must change the timing and
+          # nothing else. A wrong reuse length does not crash -- it answers from
+          # another conversation's state and still reads plausibly -- so this is
+          # the only gate that would catch it. Needs the fixture above, which is
+          # why it runs here and not in `make check`.
+          INKLING_TINY=tiny_inkling python3 -m unittest -v tests.test_inkling_prefix_serve
+      - name: "Brain tab: HITS after every turn, on the grid EMAP declared"
+        run: |
+          cd c
+          INKLING_TINY=tiny_inkling python3 -m unittest -v tests.test_inkling_dashboard_hits
+
+  # The efficiency suite against the tiny GLM oracle. These 8 tests existed but
+  # had never run anywhere: they looked for c/glm.exe, a name that stopped
+  # existing at the glm -> nexdune rename, so _engine_present() was False on
+  # every platform and all of them skipped. With that fixed they need only the
+  # generated fixture, same shape as inkling-oracle above.
+  #
+  # Only the four that assert STRUCTURE are run, not the throughput floor:
+  # a shared runner's tok/s is not reproducible, and a flaky perf gate gets
+  # muted within a week. What these catch is real all the same -- the telemetry
+  # lines the whole efficiency tooling parses, PROFILE phases going missing or
+  # negative (double-counting), a fully-resident model becoming I/O bound, and
+  # two identical greedy runs diverging.
+  efficiency:
+    name: Efficiency suite (tiny oracle)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: c/tools/oracle-requirements.txt
+      - name: Install torch (CPU) + transformers
+        run: pip install -r c/tools/oracle-requirements.txt
+      - name: Build nexdune
+        run: make -C c nexdune
+      - name: Integer-kernel exactness vs pure-C reference (#1081)
+        # Integer kernels have no rounding excuse: bit-equality on every ISA.
+        # The same binary check runs on the ARM job below — this is the gate
+        # that would have caught the olmoe/qwen36/inkling IDOT class.
+        run: |
+          cd c
+          gcc -O3 -march=native -fopenmp -I. tests/test_int_kernel_exact.c -o /tmp/tike -lm
+          /tmp/tike
+      - name: Generate the glm_tiny fixture
+        run: cd c && python3 tools/make_glm_oracle.py
+      - name: Oracle (30–32/32 teacher forcing + exact greedy)
+        # Preserve CONTRIBUTING.md's two TF near-tie allowance. Greedy remains
+        # exact, and invalid/non-finite results cannot consume the allowance.
+        run: |
+          cd c
+          SNAP=./glm_tiny TF=1 NEXDUNE_TEMP=0 ORACLE_STRICT=1 ORACLE_TF_MAX_MISMATCHES=2 ./nexdune 64 16 16
+          SNAP=./glm_tiny NEXDUNE_TEMP=0 ORACLE_STRICT=1 ./nexdune 64 16 16
+      - name: Oracle allowance and failure regressions
+        run: cd c && python3 tests/test_glm_oracle.py
+      - name: Structural efficiency tests
+        # test_cpu_vs_cpu_tok_s_stability is NOT in this list: it is a tok/s
+        # bound (two runs within 25%) over a ~15 ms tiny replay -- it measured
+        # 38.8% between two identical runs on a quiet local box, so a shared
+        # runner would make it flaky on day one. The determinism test (hit-rate
+        # identical across two greedy replays) carries no timing assertion any
+        # more, so it CAN run here -- and it is the one that catches stray
+        # threading / uninitialized state.
+        run: |
+          cd c
+          python3 -m unittest -v \
+            tests.test_inefficiency.TinyEfficiencyTest.test_telemetry_parses \
+            tests.test_inefficiency.TinyEfficiencyTest.test_profile_phases_present_and_nonneg \
+            tests.test_inefficiency.TinyEfficiencyTest.test_disk_wait_not_dominant \
+            tests.test_inefficiency.TinyEfficiencyTest.test_cpu_vs_cpu_determinism
+      - name: Generate the quantized trunk fixture for #826
+        # TRUNK_RESIDENT_LAYERS views only tensors that carry an on-disk int4
+        # companion (`name.qs`), so the bf16 glm_tiny above cannot exercise the
+        # view path -- every dense tensor would fall back to resident and
+        # `resident dense` would never drop. Convert the oracle to int4 so the
+        # knob has something to stream. Run AFTER the bf16 assertions: --fp8
+        # rewrites glm_tiny in place.
+        run: |
+          cd c
+          python3 tools/make_glm_oracle.py --fp8
+          python3 tools/convert_fp8_to_int4.py --indir glm_tiny --outdir glm_tiny_i4 --ebits 4 --io-bits 4
+          # The converter copies config.json but not ref_glm.json; the engine
+          # needs the ref to enter validation mode.
+          cp ref_glm.json glm_tiny_i4/ref_glm.json
+      - name: TRUNK_RESIDENT_LAYERS opt-in contract (#826)
+        # Identical tokens + lower `resident dense`: the knob trades RAM for page
+        # faults, never answers. Keeps the next loader refactor from silently
+        # breaking -- or silently no-op'ing -- the view path.
+        run: cd c && python3 -m unittest -v tests.test_trunk_resident_layers
+
+  # The token-exact parity gate from #7 (c/tests/test_cluster_sharding.py): the
+  # engine's local CPU run must already reproduce the transformers oracle
+  # token-exactly, and delegating the routed-expert shard to a cluster worker
+  # must not perturb a single position. It exercises the fmt=6 (E8/IQ3,
+  # rotation-bearing) path and its fmt=4 (grouped int4, no-rotation) control.
+  #
+  # Not in `make check`: the two fixtures are gitignored (regenerated, not
+  # committed -- see .gitignore) and need the pinned torch/transformers to
+  # build, the same rationale as inkling-oracle and efficiency above. The test
+  # skips cleanly when the fixtures are absent, so leaving fixture generation
+  # out of CI would turn the gate into a silent no-op on a clean host -- the
+  # worker path would never actually run. This job regenerates both fixtures
+  # first so the gate is exercised, not dormant.
+  #
+  # Socket safety: the test spawns a cluster worker subprocess and a
+  # coordinator, each binding a 127.0.0.1 port obtained from _free_port()
+  # (bind to port 0), so it is safe on a shared runner.
+  cluster-parity:
+    name: Cluster parity gate (fmt6/fmt4, token-exact)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: c/tools/oracle-requirements.txt
+      - name: Install torch (CPU) + transformers
+        run: pip install -r c/tools/oracle-requirements.txt
+      - name: Build nexdune
+        run: make -C c nexdune
+      - name: Generate the fmt6/fmt4 quantized fixtures
+        run: cd c && python3 tools/make_glm_oracle.py --fmt6 && python3 tools/make_glm_oracle.py --fmt4
+      - name: Cluster parity gate (token-exact)
+        run: cd c && python3 -m unittest -v tests.test_cluster_sharding
+
+  engine-hip-syntax:
+    name: HIP syntax check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Free runner disk
+        # rocm/dev images are large; hosted runners need the headroom freed
+        # BEFORE the pull (which is why this is not a container: job).
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+      - name: Compile backend_cuda.cu + test binary with hipcc (no GPU)
+        run: |
+          # Tag pinned: `latest` outgrew the runner disk once already. The
+          # gcc-side engine link is skipped: containerized gcc/ld cannot link
+          # ROCm runtime libs (both 22.04 and 24.04 bases); the hipcc-driver
+          # link of the test binary below covers the single-source claim, and
+          # the engine link is exercised on real ROCm hardware (GPU_BACKENDS.md).
+          docker run --rm -v "$PWD":/src -w /src rocm/dev-ubuntu-24.04:6.2 bash -c '
+            apt-get update && apt-get install -y --no-install-recommends make gcc g++ rocwmma-dev binutils &&
+            make -C c gpu-compile HIP=1 HIP_ARCH=gfx1100 &&
+            # The engine link is skipped here (see above), so assert the property
+            # that link needs instead: backend_cuda.o must be position-independent.
+            # hipcc emits a non-PIC/PIE object unless told otherwise, while gcc
+            # links -pie by default on the distros users build on, so absolute
+            # 32-bit relocations here mean `make HIP=1 nexdune` dies with
+            #   R_X86_64_32 ... can not be used when making a PIE object
+            # That is exactly what happened before -fPIE was added to HIPCCFLAGS:
+            # this job stayed green over a HIP build that could not link at all,
+            # because gpu-compile links the TEST binary with the hipcc driver
+            # (PIC-agnostic) and never runs the gcc engine link. One readelf keeps
+            # that regression from silently coming back.
+            if readelf -r c/backend_cuda.o | grep -qE "R_X86_64_32S?"; then
+              echo "backend_cuda.o has absolute 32-bit relocations: the PIE link of nexdune will fail (HIPCCFLAGS needs -fPIE or -fPIC)" >&2
+              exit 1
+            fi'
+          echo "HIP syntax check passed"
+
+  windows-cuda-build:
+    # The Windows CUDA path has no coverage anywhere: `engine-cuda-syntax` above
+    # compiles with nvcc's *GCC* host on Linux, and check.yml's windows job is
+    # MinGW/UCRT64 CPU-only by design (#140). But nvcc on Windows requires MSVC
+    # as its host compiler — it does not accept MinGW — so `make cuda-dll` runs a
+    # toolchain nothing else in CI touches. That gap is not theoretical: every
+    # bug in #158 was a *build* failure on this path (MSVC rejects the GCC-style
+    # -Xcompiler=-Wall,-Wextra with "D8021 invalid numeric argument '/Wextra'",
+    # unresolvable CUDA_HOME/NVCC defaults, POSIX setenv in the kernel test), and
+    # #314 was CUDA_HOME with spaces — the layout the CUDA installer ships by
+    # default. Both classes are compile-time and need no GPU to catch.
+    #
+    # Build-only ON PURPOSE: GitHub's hosted runners have no NVIDIA device, so
+    # this job proves the Windows+MSVC CUDA build stays buildable, NOT that the
+    # kernels or the DLL loader behave on real silicon. That still needs hardware
+    # (see #157). Claiming otherwise would be the false confidence the
+    # engine-cuda-syntax comment above already warns about.
+    name: CUDA build (Windows, MSVC host)
+    # windows-2022, NOT windows-latest: the latest image now ships Visual Studio
+    # 18 (MSVC 14.5x), and CUDA's crt/host_config.h hard-errors on any host newer
+    # than VS 2022 ("Only the versions between 2017 and 2022 (inclusive) are
+    # supported"). That is a real constraint for every CUDA user on Windows, not
+    # a CI quirk — pinning tracks what the toolkit actually supports. Revisit when
+    # a CUDA release accepts VS 18; -allow-unsupported-compiler would only mask it.
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - name: MSVC environment (puts cl.exe on PATH for nvcc -ccbin)
+        uses: ilammy/msvc-dev-cmd@0b201ec74fa43914dc39ae48a89fd1d8cb592756 # v1
+      - name: Install CUDA toolkit (compiler only)
+        uses: Jimver/cuda-toolkit@b8bf9c6c28f8a92fbb04dcfcaee872e60c57462d # v0.2.36
+        with:
+          # 12.8 is the floor for sm_120 (RTX 50-series), which the portable
+          # DLL below carries; the 12.x runtime keeps the driver floor where
+          # users already are (#1405). v0.2.19 stopped at 12.6.2, hence the
+          # action bump. This installs to the default "C:\Program Files\NVIDIA
+          # GPU Computing Toolkit\..." path, so CUDA_HOME is space-bearing here
+          # -- which is exactly the #314 regression this job would have caught.
+          cuda: '12.8.1'
+          method: network
+          # cudart as well as nvcc: unlike the Linux job (which only needs to
+          # *compile* backend_cuda.cu), cuda-dll links it, and on Windows the
+          # runtime headers/import lib ship as a separate installer component —
+          # with '["nvcc"]' alone this fails at `#include <cuda_runtime.h>`.
+          sub-packages: '["nvcc", "cudart"]'
+      - uses: msys2/setup-msys2@66cd2cce69caa17b53920067426061ca1de3a884 # v2
+        with:
+          msystem: UCRT64
+          update: false
+          # inherit: cl.exe (msvc-dev-cmd) and nvcc (cuda-toolkit) are added to
+          # the *Windows* PATH by the steps above; without inheriting it the
+          # recipe's `command -v` guards fail inside the MSYS2 shell.
+          path-type: inherit
+          install: >-
+            make
+            git
+            mingw-w64-ucrt-x86_64-gcc
+      # The DeepSeek V4 DeepGEMM flavour compiles against a pinned checkout
+      # that tools/fetch_deepgemm.sh makes on first use (nothing vendored).
+      # CI cannot compile it (sm_120a needs CUDA >= 12.8; this job pins 12.6)
+      # but it does exercise the fetch — pin verification + MSVC patch — and
+      # caches the tree keyed on the pin so a bump is the only cache miss.
+      - name: DeepGEMM pin (for the cache key)
+        id: deepgemm-pin
+        shell: bash
+        run: echo "pin=$(sed -n 's/^DEEPGEMM_PIN ?= //p' c/Makefile | head -1)" >> "$GITHUB_OUTPUT"
+      - name: Cache the pinned DeepGEMM checkout
+        uses: actions/cache@v4
+        with:
+          path: c/third_party/deepgemm
+          key: deepgemm-${{ steps.deepgemm-pin.outputs.pin }}-${{ hashFiles('c/patches-deepgemm-sm120-msvc.patch') }}
+      - name: make deepgemm-fetch (pinned checkout + MSVC patch, no compile)
+        shell: msys2 {0}
+        run: |
+          cd c
+          make deepgemm-fetch
+          test -f third_party/deepgemm/deep_gemm/include/deep_gemm/impls/sm120_bf16_gemm.cuh || { echo "fetch_deepgemm produced no sm120 headers" >&2; exit 1; }
+          # second run must be a no-op (idempotency)
+          make deepgemm-fetch | grep -q "already at" || { echo "fetch_deepgemm is not idempotent" >&2; exit 1; }
+      - name: make cuda-dll (nvcc + MSVC host)
+        shell: msys2 {0}
+        run: |
+          cd c
+          # CUDA_ARCH is explicit: the default is `native`, which asks the driver
+          # what card is present, and there is none here. `portable` is the DLL
+          # a Windows user can download and run: SASS for sm_80/86/89/90/120
+          # plus PTX, one file for the 30xx, 40xx and 50xx cards (#1405). The
+          # runner cannot execute it; the artifact below is for the people who
+          # can, until the release ships it.
+          make cuda-dll CUDA_ARCH=portable
+          test -f nexdune_cuda.dll || { echo "cuda-dll reported success but produced no DLL" >&2; exit 1; }
+          ls -l nexdune_cuda.dll
+          echo "nexdune_cuda.dll built (MSVC host, portable gencode)"
+      - name: make nexdune CUDA_DLL=1 (host links backend_loader, not cudart)
+        shell: msys2 {0}
+        run: |
+          cd c
+          make nexdune CUDA_DLL=1
+          test -f nexdune.exe || { echo "nexdune CUDA_DLL=1 reported success but produced no exe" >&2; exit 1; }
+          echo "nexdune.exe built against the DLL loader"
+          # qwen36.exe, not qwen36: only nexdune has a phony alias; the bare
+          # name falls into make's builtin rule and links qwen36.c alone.
+          make qwen36.exe CUDA_DLL=1
+          test -f qwen36.exe || { echo "qwen36 CUDA_DLL=1 reported success but produced no exe" >&2; exit 1; }
+          echo "qwen36.exe built against the DLL loader"
+          # kimi_k3 links the same loader: three engines share nexdune_cuda.dll.
+          # deepseek_v4 has its own DLL (nexdune_cuda_dsv4.dll, Makefile.deepseek-v4)
+          # and joins in a later step; inkling's CUDA object has no Windows loader.
+          make kimi_k3.exe CUDA_DLL=1
+          test -f kimi_k3.exe || { echo "kimi_k3 CUDA_DLL=1 reported success but produced no exe" >&2; exit 1; }
+          echo "kimi_k3.exe built against the DLL loader"
+      - name: Collect the runtime the DLL links (cudart64_12.dll)
+        shell: bash
+        run: |
+          # nexdune_cuda.dll links cudart dynamically; without the toolkit on the
+          # user's machine the loader reports "module or one of its dependencies
+          # was not found". Ship the runtime next to it, from this same toolkit.
+          ls "$CUDA_PATH/bin"/cudart64_*.dll
+          cp "$CUDA_PATH/bin"/cudart64_*.dll c/
+      - name: Publish the portable DLL for people with a card (#1405)
+        uses: actions/upload-artifact@v4
+        with:
+          name: nexdune_cuda-windows-portable
+          if-no-files-found: error
+          retention-days: 30
+          path: |
+            c/nexdune_cuda.dll
+            c/cudart64_*.dll
+            c/nexdune.exe
+            c/qwen36.exe
+            c/kimi_k3.exe
+
+  web:
+    name: Web UI
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - name: Build
+        run: npm run build
+      - name: Test
+        run: npx vitest run
+
+  python:
+    name: Python tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      # Sette test in tests/test_kimi_usage_cli.py e tests/test_inkling_prefix_serve.py
+      # sono protetti da skipUnless(ENGINE.exists()). Questo job non compilava
+      # nessun motore, quindi si saltavano tutti e sette e il job restava verde
+      # perche' era vuoto -- la stessa forma del job dei sanitizer che
+      # rieseguiva un binario non strumentato. Uno di quei test era rosso da
+      # settimane senza che nessuno potesse vederlo.
+      - name: Build the engines those tests exercise
+        run: make -C c kimi_k3 inkling nexdune olmoe qwen38 qwen36 deepseek_v41
+      - name: Python test suite
+        run: cd c && python3 -m unittest discover -s tests -p 'test_*.py'
+
+  gguf:
+    name: GGUF reader + converter tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: c/tools/requirements-gguf.txt
+      # This job is what makes the numerical GGUF evidence real: without these
+      # deps those tests skip at import, so the generic `python` job alone only
+      # exercises test_gguf_reader.py (pure stdlib).
+      - name: Install GGUF test dependencies
+        run: pip install -r c/tools/requirements-gguf.txt
+      - name: GGUF reader, dequant, profile and converter tests
+        run: |
+          cd c
+          python3 -m unittest -v \
+            tests.test_gguf_reader \
+            tests.test_gguf_dequant \
+            tests.test_gguf_olmoe_profile \
+            tests.test_convert_gguf_to_olmoe
+
+  windows-python-focused:
+    name: Python tests (Windows focused)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Converter and launcher tests
+        shell: pwsh
+        run: |
+          cd c
+          $suites = @(
+            'tests.test_launcher_dispatch'
+            'tests.test_inkling_converter_lock'
+            'tests.test_convert_positioned_write'
+          )
+          python -m unittest -v @suites
+
+  # ARM oracle (#1081): every tiny-oracle job above runs on x86, so NEON
+  # branches were never compiled, let alone executed — which is how the
+  # olmoe (#1044) / qwen36 (#712 review) / inkling (#1080) IDOT class shipped.
+  # This job builds every engine on arm64 (NEON compile coverage), runs the
+  # integer-kernel bit-exactness gate with the NEON branches live, and replays
+  # the glm_tiny teacher-forcing oracle against a fixture generated on THIS
+  # runner. As on x86, allow two TF near ties; greedy remains exact.
+  oracle-arm:
+    name: ARM (engines + NEON kernel exactness + tiny oracle)
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: c/tools/oracle-requirements.txt
+      - name: Install torch (CPU) + transformers
+        run: pip install -r c/tools/oracle-requirements.txt
+      - name: Build every engine (NEON branches must compile)
+        run: make -C c nexdune inkling kimi_k3 olmoe
+      - name: "DeepSeek V4 FP4 expert kernels: NEON arm bit-exact against the scalar arm (#1696)"
+        run: |
+          cd c
+          # batch (prefill) and S=1 (the matvec the decode uses)
+          bash tools/bench_fp4_matmul.sh 32 256 128 1
+          bash tools/bench_fp4_matmul.sh 1 256 128 1
+      - name: Integer-kernel exactness, NEON branches live (#1081)
+        run: |
+          cd c
+          gcc -O3 -mcpu=native -fopenmp -I. tests/test_int_kernel_exact.c -o /tmp/tike -lm
+          /tmp/tike
+      - name: Generate the glm_tiny fixture on this runner
+        run: cd c && python3 tools/make_glm_oracle.py
+      - name: Oracle on ARM (30–32/32 teacher forcing + exact greedy)
+        run: |
+          cd c
+          SNAP=./glm_tiny TF=1 NEXDUNE_TEMP=0 ORACLE_STRICT=1 ORACLE_TF_MAX_MISMATCHES=2 ./nexdune 64 16 16
+          SNAP=./glm_tiny NEXDUNE_TEMP=0 ORACLE_STRICT=1 ./nexdune 64 16 16
+      - name: Oracle allowance and failure regressions on ARM
+        run: cd c && python3 tests/test_glm_oracle.py
