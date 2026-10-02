@@ -9,23 +9,23 @@ Una guida semplice per eseguire **Nexdune**, un motore di inferenza locale basat
 
 ## 📋 Sommario
 
-- [Cosa è Nexdune?](https://github.com/JustVugg/nexdune/blob/main/docker/README.IT.md#cosa-%C3%A8-nexdune)
-- [Cosa serve](https://github.com/JustVugg/nexdune/blob/main/docker/README.IT.md#cosa-serve)
-    - [Hardware](https://github.com/JustVugg/nexdune/blob/main/docker/README.IT.md#hardware)
-    - [Software](https://github.com/JustVugg/nexdune/blob/main/docker/README.IT.md#software)
-- [Come iniziare](https://github.com/JustVugg/nexdune/blob/main/docker/README.IT.md#come-iniziare)
-    - [Passo 1: Scarica il modello](https://github.com/JustVugg/nexdune/blob/main/docker/README.IT.md#passo-1-scarica-il-modello)
-    - [Passo 2: Scarica il Dockerfile di Nexdune](https://github.com/JustVugg/nexdune/blob/main/docker/README.IT.md#passo-2-scarica-il-dockerfile-di-nexdune)
-    - [Passo 3: Compila l'immagine Docker](https://github.com/JustVugg/nexdune/blob/main/docker/README.IT.md#passo-3-compila-limmagine-docker)
-    - [Passo 4: Avvia Nexdune](https://github.com/JustVugg/nexdune/blob/main/docker/README.IT.md#passo-4-avvia-nexdune)
-    - [Cosa significa quel comando?](https://github.com/JustVugg/nexdune/blob/main/docker/README.IT.md#cosa-significa-quel-comando)
-    - [Usare Nexdune](https://github.com/JustVugg/nexdune/blob/main/docker/README.IT.md#usare-nexdune)
-- [Entrare nel container](https://github.com/JustVugg/nexdune/blob/main/docker/README.IT.md#entrare-nel-container)
-- [Risoluzione dei problemi](https://github.com/JustVugg/nexdune/blob/main/docker/README.IT.md#risoluzione-dei-problemi)
-- [Note tecniche](https://github.com/JustVugg/nexdune/blob/main/docker/README.IT.md#note-tecniche)
-- [Domande frequenti](https://github.com/JustVugg/nexdune/blob/main/docker/README.IT.md#domande-frequenti)
-- [Supporto e contributi](https://github.com/JustVugg/nexdune/blob/main/docker/README.IT.md#supporto-e-contributi)
-- [Testing on a low resource PC](https://github.com/JustVugg/nexdune/blob/main/docker/README.IT.md#test-su-un-pc-con-poche-risorse)
+- [Cosa è Nexdune?](https://github.com/NiranX-music/Nexdune/blob/main/docker/README.IT.md#cosa-%C3%A8-nexdune)
+- [Cosa serve](https://github.com/NiranX-music/Nexdune/blob/main/docker/README.IT.md#cosa-serve)
+    - [Hardware](https://github.com/NiranX-music/Nexdune/blob/main/docker/README.IT.md#hardware)
+    - [Software](https://github.com/NiranX-music/Nexdune/blob/main/docker/README.IT.md#software)
+- [Come iniziare](https://github.com/NiranX-music/Nexdune/blob/main/docker/README.IT.md#come-iniziare)
+    - [Passo 1: Scarica il modello](https://github.com/NiranX-music/Nexdune/blob/main/docker/README.IT.md#passo-1-scarica-il-modello)
+    - [Passo 2: Scarica il Dockerfile di Nexdune](https://github.com/NiranX-music/Nexdune/blob/main/docker/README.IT.md#passo-2-scarica-il-dockerfile-di-nexdune)
+    - [Passo 3: Compila l'immagine Docker](https://github.com/NiranX-music/Nexdune/blob/main/docker/README.IT.md#passo-3-compila-limmagine-docker)
+    - [Passo 4: Avvia Nexdune](https://github.com/NiranX-music/Nexdune/blob/main/docker/README.IT.md#passo-4-avvia-nexdune)
+    - [Cosa significa quel comando?](https://github.com/NiranX-music/Nexdune/blob/main/docker/README.IT.md#cosa-significa-quel-comando)
+    - [Usare Nexdune](https://github.com/NiranX-music/Nexdune/blob/main/docker/README.IT.md#usare-nexdune)
+- [Entrare nel container](https://github.com/NiranX-music/Nexdune/blob/main/docker/README.IT.md#entrare-nel-container)
+- [Risoluzione dei problemi](https://github.com/NiranX-music/Nexdune/blob/main/docker/README.IT.md#risoluzione-dei-problemi)
+- [Note tecniche](https://github.com/NiranX-music/Nexdune/blob/main/docker/README.IT.md#note-tecniche)
+- [Domande frequenti](https://github.com/NiranX-music/Nexdune/blob/main/docker/README.IT.md#domande-frequenti)
+- [Supporto e contributi](https://github.com/NiranX-music/Nexdune/blob/main/docker/README.IT.md#supporto-e-contributi)
+- [Testing on a low resource PC](https://github.com/NiranX-music/Nexdune/blob/main/docker/README.IT.md#test-su-un-pc-con-poche-risorse)
 
 ---
 
@@ -96,7 +96,7 @@ Se sei su Windows e non riesci con Python:
 
 ### Passo 2: Scarica il Dockerfile di Nexdune
 
-1. Vai a: https://github.com/JustVugg/nexdune/blob/main/docker/Dockerfile
+1. Vai a: https://github.com/NiranX-music/Nexdune/blob/main/docker/Dockerfile
 2. Clicca il pulsante **Download** (icona ⬇️) in alto a destra
 3. Salva il file in una cartella (es. `C:\LLM\Nexdune`)
 
@@ -404,7 +404,7 @@ R: Zero. Nexdune funziona completamente offline.
 
 Se trovi errori o hai suggerimenti per migliorare questa guida, aprici una issue o una pull request sul repository GitHub di Nexdune.
 
-Buon divertimento! 🐦
+Buon divertimento!
 
 ---
 

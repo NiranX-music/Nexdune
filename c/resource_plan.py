@@ -775,7 +775,7 @@ def physical_cpu_count():
         # requested columns (no CPU prefix), while bare `lscpu -p` prepends
         # CPU. We requested two columns, but take the LAST TWO fields so the
         # parser stays correct whether or not a CPU column is present
-        # (JustVugg review: the previous fields[1]/fields[2] indexing assumed
+        # (code review: the previous fields[1]/fields[2] indexing assumed
         #  a 3-column layout and regressed 2-column output to the logical
         # count -- the opposite of the fix).
         result = subprocess.run(["lscpu", "-p=core,socket"], text=True,

@@ -1,53 +1,53 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1236" height="240" viewBox="0 0 1236 240">
-  <title>nexdune — tiny engine, immense model</title>
-  <g transform="translate(46 34) scale(1.0)" shape-rendering="crispEdges">
-    <rect x="56" y="0" width="14" height="14" fill="#d75fd7"/>
-    <rect x="70" y="0" width="14" height="14" fill="#d75fd7"/>
-    <rect x="84" y="0" width="14" height="14" fill="#d75fd7"/>
-    <rect x="42" y="14" width="14" height="14" fill="#d75fd7"/>
-    <rect x="56" y="14" width="14" height="14" fill="#d75fd7"/>
-    <rect x="70" y="14" width="14" height="14" fill="#d75fd7"/>
-    <rect x="84" y="14" width="14" height="14" fill="#d75fd7"/>
-    <rect x="98" y="14" width="14" height="14" fill="#d75fd7"/>
-    <rect x="140" y="14" width="14" height="14" fill="#5fd7d7"/>
-    <rect x="56" y="28" width="14" height="14" fill="#d75fd7"/>
-    <rect x="70" y="28" width="14" height="14" fill="#d75fd7"/>
-    <rect x="84" y="28" width="14" height="14" fill="#d75fd7"/>
-    <rect x="98" y="28" width="14" height="14" fill="#d75fd7"/>
-    <rect x="126" y="28" width="14" height="14" fill="#5fd7d7"/>
-    <rect x="140" y="28" width="14" height="14" fill="#5fd7d7"/>
-    <rect x="0" y="42" width="14" height="14" fill="#ff8700"/>
-    <rect x="14" y="42" width="14" height="14" fill="#ff8700"/>
-    <rect x="28" y="42" width="14" height="14" fill="#ff8700"/>
-    <rect x="42" y="42" width="14" height="14" fill="#ff8700"/>
-    <rect x="56" y="42" width="14" height="14" fill="#00afaf"/>
-    <rect x="70" y="42" width="14" height="14" fill="#00afaf"/>
-    <rect x="84" y="42" width="14" height="14" fill="#ffffff"/>
-    <rect x="98" y="42" width="14" height="14" fill="#00afaf"/>
-    <rect x="112" y="42" width="14" height="14" fill="#5fd7d7"/>
-    <rect x="126" y="42" width="14" height="14" fill="#5fd7d7"/>
-    <rect x="56" y="56" width="14" height="14" fill="#00afaf"/>
-    <rect x="70" y="56" width="14" height="14" fill="#00afaf"/>
-    <rect x="84" y="56" width="14" height="14" fill="#00afaf"/>
-    <rect x="98" y="56" width="14" height="14" fill="#00afaf"/>
-    <rect x="112" y="56" width="14" height="14" fill="#00afaf"/>
-    <rect x="126" y="56" width="14" height="14" fill="#5fd7d7"/>
-    <rect x="140" y="56" width="14" height="14" fill="#5fd7d7"/>
-    <rect x="70" y="70" width="14" height="14" fill="#00afaf"/>
-    <rect x="84" y="70" width="14" height="14" fill="#00afaf"/>
-    <rect x="98" y="70" width="14" height="14" fill="#00afaf"/>
-    <rect x="112" y="70" width="14" height="14" fill="#00afaf"/>
-    <rect x="126" y="70" width="14" height="14" fill="#5fd7d7"/>
-    <rect x="140" y="70" width="14" height="14" fill="#5fd7d7"/>
-    <rect x="84" y="84" width="14" height="14" fill="#00afaf"/>
-    <rect x="98" y="84" width="14" height="14" fill="#00afaf"/>
-    <rect x="112" y="84" width="14" height="14" fill="#5fd7d7"/>
-    <rect x="126" y="84" width="14" height="14" fill="#5fd7d7"/>
-    <rect x="98" y="98" width="14" height="14" fill="#00afaf"/>
-    <rect x="112" y="98" width="14" height="14" fill="#5fd7d7"/>
-    <rect x="112" y="112" width="14" height="14" fill="#5fd7d7"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="680" height="150" viewBox="0 0 680 150" fill="none">
+  <defs>
+    <linearGradient id="nex-banner-grad" x1="20" y1="20" x2="140" y2="130" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#00f2fe"/>
+      <stop offset="60%" stop-color="#3b82f6"/>
+      <stop offset="100%" stop-color="#6366f1"/>
+    </linearGradient>
+    <linearGradient id="nex-accent-grad" x1="40" y1="120" x2="120" y2="30" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#00f2fe"/>
+    </linearGradient>
+    <linearGradient id="nex-text-grad" x1="170" y1="40" x2="450" y2="90" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#94a3b8"/>
+    </linearGradient>
+    <filter id="nex-banner-glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+
+  <!-- Nexus Emblem Icon -->
+  <g transform="translate(15, 15)">
+    <!-- Base Plate -->
+    <rect width="120" height="120" rx="26" fill="#0c1017" stroke="#1e293b" stroke-width="1.5"/>
+    <circle cx="60" cy="60" r="42" fill="#00f2fe" fill-opacity="0.12" filter="blur(10px)"/>
+
+    <!-- Left Pillar -->
+    <path d="M34 88V32C34 29 36 27 39 27H45C48 27 50 29 50 32V88C50 91 48 93 45 93H39C36 93 34 91 34 88Z" fill="url(#nex-banner-grad)"/>
+
+    <!-- Right Pillar -->
+    <path d="M70 88V32C70 29 72 27 75 27H81C84 27 86 29 86 32V88C86 91 84 93 81 93H75C72 93 70 91 70 88Z" fill="url(#nex-banner-grad)"/>
+
+    <!-- Dynamic Diagonal Router -->
+    <path d="M46 29L75 84C77 87 81 88 84 86L86 85C89 83 90 79 88 76L59 21C57 18 53 17 50 19L48 20C45 22 44 26 46 29Z" fill="url(#nex-accent-grad)"/>
+
+    <!-- Convergence Core -->
+    <circle cx="60" cy="55" r="4.5" fill="#ffffff" filter="drop-shadow(0 0 6px #00f2fe)"/>
+
+    <!-- Bottom Dune Wave -->
+    <path d="M28 100C48 93 74 107 92 100" stroke="url(#nex-accent-grad)" stroke-width="2.5" stroke-linecap="round" stroke-opacity="0.8"/>
   </g>
-  <g transform="translate(260.0 127.0) scale(15.0000 -15.0000)" shape-rendering="crispEdges" fill="#00afaf"><path transform="translate(0,0)" d="M6 6V4H2V6ZM2 4V0H0V4ZM6 0V-2H2V0Z"/><path transform="translate(9,0)" d="M6 6V-2H0V6ZM2 4V0H4V4Z"/><path transform="translate(18,0)" d="M2 6V0H6V-2H0V6Z"/><path transform="translate(27,0)" d="M6 6V4H4V0H6V-2H0V0H2V4H0V6Z"/><path transform="translate(36,0)" d="M4 6V4H6V-2H0V6ZM2 2V0H4V2Z"/><path transform="translate(45,0)" d="M6 6V2H4V4H2V2H4V0H2V-2H0V6ZM6 0V-2H4V0Z"/><path transform="translate(54,0)" d="M6 6V4H4V0H6V-2H0V0H2V4H0V6Z"/></g>
-  <text x="262" y="196" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
-        font-size="26" fill="#808080" font-style="italic">tiny engine, immense model</text>
+
+  <!-- Brand Typography -->
+  <g transform="translate(160, 0)">
+    <text x="0" y="68" font-family="'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="46" font-weight="800" letter-spacing="-0.03em" fill="url(#nex-text-grad)">NEXDUNE</text>
+    <rect x="228" y="38" width="82" height="22" rx="6" fill="#00f2fe" fill-opacity="0.12" stroke="#00f2fe" stroke-width="1" stroke-opacity="0.4"/>
+    <text x="269" y="53" text-anchor="middle" font-family="'JetBrains Mono', monospace" font-size="10.5" font-weight="700" fill="#00f2fe" letter-spacing="0.08em">ENGINE C</text>
+    
+    <text x="0" y="98" font-family="'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="16" font-weight="500" fill="#38bdf8" letter-spacing="-0.01em">Zero-RAM Frontier MoE Streaming &amp; Deterministic Eval Engine</text>
+    <text x="0" y="122" font-family="'JetBrains Mono', monospace" font-size="12.5" font-weight="400" fill="#64748b">Engineered by NiranX &#183; Up to 2.8T Parameters &#183; Pure C &#183; Zero Dependencies</text>
+  </g>
 </svg>

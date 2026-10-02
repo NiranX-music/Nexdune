@@ -153,7 +153,7 @@
 
           meta = with pkgs.lib; {
             description = "Run large MoE models (GLM-5.2, OLMoE, DeepSeek V4 Flash) in pure C, experts streamed from disk";
-            homepage = "https://github.com/JustVugg/nexdune";
+            homepage = "https://github.com/NiranX-music/Nexdune";
             license = licenses.asl20;
             platforms = with platforms; linux ++ darwin;
             mainProgram = "nexdune";
@@ -193,7 +193,7 @@
           ];
 
           shellHook = ''
-            echo "🐦 nexdune dev shell"
+            echo "nexdune dev shell"
             echo "  gcc: $(gcc --version | head -1)"
             echo "  python: $(python3 --version)"
             echo ""

@@ -1167,7 +1167,7 @@ def cmd_build(a):
     banner("build")
     if not os.path.exists(os.path.join(HERE, "Makefile")):
         sys.exit(f"{C.yel}nexdune build{C.r} only works from a source checkout (this is an installed copy).\n"
-                  f"  Clone https://github.com/JustVugg/nexdune and run ./setup.sh, or make -C c nexdune.")
+                  f"  Clone https://github.com/NiranX-music/Nexdune and run ./setup.sh, or make -C c nexdune.")
     family=resolve_model(a.model).descriptor if a.model else family_by_id("glm")
     target=family.build_target
     sys.exit(subprocess.call(["make","-C",HERE,target]))
@@ -1741,7 +1741,7 @@ def chat_attached(a, base, model_id):
         footer=render_gen_stats(gen_stats("".join(reply), el, exact_tokens, interrupted), chat_stats_mode(a))
         if footer: print(f"\r  {C.dgray}└─ {footer}{C.r}\n")
         else: print()
-    print(f"  {C.dim}goodbye — the engine keeps running for the next chat 🐦{C.r}")
+    print(f"  {C.dim}goodbye — the engine keeps running for the next chat{C.r}")
 
 def kv_resume_notice(model_dir):
     """SERVE mode silently resumes .nexdune_kv from disk (glm.c kv_disk_load): a chat
@@ -2053,7 +2053,7 @@ def cmd_chat(a):
         except Exception: pass
         try: os.unlink(errlog.name)
         except Exception: pass
-    print(f"  {C.teal}goodbye{C.r} {C.dim}— the hummingbird returns to its nest{C.r} 🐦\n")
+    print(f"  {C.teal}goodbye{C.r} {C.dim}— session closed{C.r}\n")
 
 def serve_pidfile(port): return os.path.join(tempfile.gettempdir(), f"nexdune-serve-{port}.pid")
 

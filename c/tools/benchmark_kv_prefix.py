@@ -107,8 +107,8 @@ def main():
             base = (
                 f"Experiment round {round_id}: "
                 + (
-                    "A hummingbird can hover by reversing lift through each wingbeat. "
-                    "Its diet combines flower nectar with small insects for protein. "
+                    "A neural streaming pipeline can process model weights across storage tiers. "
+                    "Its engine combines fast memory hierarchy with deterministic inference steps. "
                 )
                 * args.repeat
             )

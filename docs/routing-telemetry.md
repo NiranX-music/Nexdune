@@ -2,7 +2,7 @@
 
 *The canonical reference for `.nexdune_usage` and `ROUTE_TRACE=`, and for `route_trace.h`,
 the header both are implemented in. Background and design discussion in
-[#700](https://github.com/JustVugg/nexdune/issues/700).*
+[#700](https://github.com/NiranX-music/Nexdune/issues/700).*
 
 ## Why one header
 

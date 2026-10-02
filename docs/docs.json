@@ -51,12 +51,8 @@
   "navbar": {
     "links": [
       {
-        "label": "Website",
-        "href": "https://justvugg.github.io/nexdune"
-      },
-      {
         "label": "GitHub",
-        "href": "https://github.com/JustVugg/nexdune",
+        "href": "https://github.com/NiranX-music/Nexdune",
         "icon": "github"
       }
     ],
@@ -68,7 +64,7 @@
   },
   "footer": {
     "socials": {
-      "github": "https://github.com/JustVugg/nexdune"
+      "github": "https://github.com/NiranX-music/Nexdune"
     }
   }
 }

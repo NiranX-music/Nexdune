@@ -50,7 +50,7 @@ this buys the least. The feature is opt-in for exactly that reason — unset
 `NEXDUNE_DRAFT_CORPUS` and nothing about decoding changes.
 
 Related: deep drafts from this source are what surfaced
-[#689](https://github.com/JustVugg/nexdune/issues/689) — speculative verify
+[#689](https://github.com/NiranX-music/Nexdune/issues/689) — speculative verify
 batches at `S>=8` diverging from the unbatched path by a near-tie token on CUDA.
 That is a separate, open bug in the verify path rather than in this draft
 source, but a large `NEXDUNE_DRAFT_CORPUS` hit rate is the easiest way to reach it.

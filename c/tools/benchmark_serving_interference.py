@@ -95,8 +95,8 @@ def main():
                 requests[request_id]["data"].append(now)
                 if phase == "treatment" and request_id == 2 and not long_submitted:
                     long_prompt = (
-                        "A hummingbird can hover by reversing lift through each wingbeat. "
-                        "Its diet combines flower nectar with small insects for protein. "
+                        "A neural streaming pipeline can process model weights across storage tiers. "
+                        "Its engine combines fast memory hierarchy with deterministic inference steps. "
                     ) * args.long_repeat
                     requests[3] = {
                         "submitted": submit(proc, 3, 1, long_prompt, 1),

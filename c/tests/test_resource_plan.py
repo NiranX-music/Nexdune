@@ -817,7 +817,7 @@ memInfo.free:                     23.50 GB (97%)
         #  - 2-col: `lscpu -p=core,socket` emits exactly [core,socket] (this is
         #           what the probe actually requests; the previous fields[1]/[2]
         #           indexing skipped every line here and fell through to the
-        #           logical count -> the regression JustVugg caught).
+        #           logical count -> the regression caught during review).
         #  - 3-col: bare `lscpu -p` prepends a CPU column -> [cpu,core,socket].
         # Taking the last two fields is correct in both cases.
         layouts = {

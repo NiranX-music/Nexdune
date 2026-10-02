@@ -647,7 +647,7 @@ def main():
                  "Every layer (Gated-Attention + Gated DeltaNet linear_attention) carries its",
                  "MoE/MLP block. DeltaNet weights live under model.layers.{i}.linear_attn.* and are",
                  "run by the recurrent gated-delta-rule in the nexdune `qwen36` engine.",
-                 "", "Engine: https://github.com/JustVugg/nexdune (c/qwen36.c)"]
+                 "", "Engine: https://github.com/NiranX-music/Nexdune (c/qwen36.c)"]
         (out / "README.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
     # ---- final upload (non-stream path) + cleanup ----

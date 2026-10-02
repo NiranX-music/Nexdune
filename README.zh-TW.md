@@ -3,7 +3,6 @@
 </p>
 
 <p align="center">
-  <a href="https://discord.gg/RXV83nSZdk"><b>Discord</b></a> ·
   <a href="README.md">English</a> · <a href="README.zh-CN.md">简体中文</a> · 繁體中文 · <a href="README.it.md">Italiano</a> · <a href="README.ja.md">日本語</a>
 </p>
 
@@ -25,7 +24,7 @@ Nexdune 刻意用於驗證激進的系統構想——因此**對速度不作 SLA
 
 ```
 $ ./nexdune chat
-  🐦 nexdune v1.12.1 — GLM-5.2 · 744B MoE · int4 · streaming CPU
+  nexdune v1.12.1 — GLM-5.2 · 744B MoE · int4 · streaming CPU
   ✓ ready in 32s · resident 9.9 GB
   › ciao!
   ◆ Ciao! 😊 Come posso aiutarti oggi?
@@ -49,7 +48,7 @@ Brain 頁面和效能分析，支援淺色與深色主題。圖中是 Qwen3.6 �
 <p align="center">
   <img src="docs/media/nexdune-brain.png" width="900" alt="大腦頁面：GLM-5.2 的實測專家圖譜繪成一塊皮質，十個可進入的區域">
 </p>
-<p align="center"><em><strong>大腦（Brain）</strong>頁面的 <strong>Explore</strong> 檢視：將 GLM-5.2 的<a href="https://github.com/JustVugg/nexdune/issues/175">實測專家圖譜</a>繪成一塊皮質。
+<p align="center"><em><strong>大腦（Brain）</strong>頁面的 <strong>Explore</strong> 檢視：將 GLM-5.2 的<a href="https://github.com/NiranX-music/Nexdune/issues/175">實測專家圖譜</a>繪成一塊皮質。
 13,260 個已分析專家分為十個區域（Python、SQL、數學、詩歌、法律、中文……）；位置取自實測路由親和度，而非學習出的嵌入向量。
 選擇一個區域即可進入。<strong>Live routing</strong> 檢視切換到正在執行的模型：每個專家一格，顏色代表儲存層級，每輪被路由到的專家都會閃白。</em></p>
 
@@ -114,7 +113,7 @@ Brain 頁面和效能分析，支援淺色與深色主題。圖中是 Qwen3.6 �
 快取狀態、吞吐、TTFT、expert hit、讀取位元組數與品質檢查；每次只改一個變數，重複執行並附上
 原始日誌。先閱讀 [CONTRIBUTING.md](CONTRIBUTING.md) 和
 [benchmark 協議](docs/benchmarks.md)，然後
-[建立實驗 issue](https://github.com/JustVugg/nexdune/issues/new)。
+[建立實驗 issue](https://github.com/NiranX-music/Nexdune/issues/new)。
 在這裡，一個受控的失敗比一個無法解釋的高數字更有價值。
 
 ## 核心概念
@@ -160,7 +159,7 @@ Brain 頁面和效能分析，支援淺色與深色主題。圖中是 Qwen3.6 �
 兩端之間有一層**學習型快取**：引擎會記錄*你的*工作負載路由到哪些專家
 （`.nexdune_usage`，每輪更新），並自動固定最熱門的專家——nexdune 確實會越用越快。
 在多插槽主機上，`NEXDUNE_NUMA=1` 會將常駐權重交錯分配到各記憶體控制器
-（[#82](https://github.com/JustVugg/nexdune/issues/82)）。
+（[#82](https://github.com/NiranX-music/Nexdune/issues/82)）。
 
 ### 絕不為同一次硬碟讀取等待兩遍
 
@@ -188,9 +187,9 @@ MLA 注意力儲存壓縮後的 KV 狀態——每個 token 為 576 個浮點數
 GLM-5.2 原生 MTP head 會起草 token，再由主模型以一次批次前向傳遞驗證——
 條件合適時每次 forward 可產生 2.2–2.8 個 token。兩條得來不易的規則已成為預設值：
 MTP head 必須是 **int8**（int4 head 的接受率會崩落到 0–4%，見
-[#8](https://github.com/JustVugg/nexdune/issues/8)），且草稿與驗證必須計算
+[#8](https://github.com/NiranX-music/Nexdune/issues/8)），且草稿與驗證必須計算
 **相同函數**——`SPEC_PIN=1` 會把兩者固定在同一 kernel family
-（完整鑑識過程見 [#163](https://github.com/JustVugg/nexdune/issues/163)）。
+（完整鑑識過程見 [#163](https://github.com/NiranX-music/Nexdune/issues/163)）。
 文法強制草稿（[`GRAMMAR=file.gbnf`](docs/grammar-draft.md)）可在受限 JSON 輸出中，
 以近乎免費的成本提高接受率。推測式解碼是否帶來淨收益取決於快取熱度——請實測，
 若不划算就使用 `DRAFT=0`。
@@ -207,16 +206,16 @@ MTP head 必須是 **int8**（int4 head 的接受率會崩落到 0–4%，見
 - **6× RTX 5090，全部常駐：**解碼 5.8–6.8 tok/s，TTFT 約 13 秒
   （[實驗紀錄](docs/experiments/glm52-6x5090-2026-07-12.md)）；
 - **128 GB、僅使用 CPU 的桌上型電腦：**暖機後約 1.8 tok/s
-  （[#200](https://github.com/JustVugg/nexdune/issues/200)）；
+  （[#200](https://github.com/NiranX-music/Nexdune/issues/200)）；
 - **單張 RTX 5070 Ti 的筆電級電腦：**透過 GPU 常駐管線達到 1.07 tok/s
-  （[#273](https://github.com/JustVugg/nexdune/issues/273)）；
+  （[#273](https://github.com/NiranX-music/Nexdune/issues/273)）；
 - **25 GB 開發機：**冷啟動 0.05–0.1 tok/s——這是專案起步時已證實的下限，
   也仍是如實呈現的基準。
 
 品質來自測量，而非假設：int4 容器的量化成本，以及 scale granularity／rotation
 消融實驗，收錄於 [docs/benchmarks.md](docs/benchmarks.md#quality-benchmark)、
-[#108](https://github.com/JustVugg/nexdune/issues/108) 與
-[#81](https://github.com/JustVugg/nexdune/issues/81)。
+[#108](https://github.com/NiranX-music/Nexdune/issues/108) 與
+[#81](https://github.com/NiranX-music/Nexdune/issues/81)。
 
 ## 開始使用
 
@@ -226,7 +225,7 @@ MTP head 必須是 **int8**（int4 head 的接受率會崩落到 0–4%，見
 ### 1. 取得 nexdune
 
 **下載預先建置的版本**——Linux、macOS 與 Windows 均已提供，不需要編譯器。從
-[Releases](https://github.com/JustVugg/nexdune/releases) 下載對應平台的壓縮檔並解壓：
+[Releases](https://github.com/NiranX-music/Nexdune/releases) 下載對應平台的壓縮檔並解壓：
 
 ```bash
 mkdir nexdune && tar xzf nexdune-v1.8.0-linux-x86_64.tar.gz -C nexdune && cd nexdune
@@ -241,7 +240,7 @@ python3 nexdune info                         # engine ready ✓
 **或者從原始碼建置**——需要具備 OpenMP 的 `gcc`（或 clang）：
 
 ```bash
-git clone https://github.com/JustVugg/nexdune && cd nexdune/c
+git clone https://github.com/NiranX-music/Nexdune && cd Nexdune/c
 ./setup.sh                                # 檢查 gcc/OpenMP、建置並執行自我測試
 ```
 
@@ -262,10 +261,10 @@ Hugging Face 上已有預先轉換的 **GLM-5.2 int4** 容器——請務必使�
 
 > ⚠️ 請使用上面的 **gs64** 容器，不要使用較舊的 per-row int4 鏡像
 >（`mateogrgic/…`、`jlnsrk/…`）：後者品質實測低約 9 個百分點，也是
-> [#455](https://github.com/JustVugg/nexdune/issues/455) 最初 think-mode 迴圈與生成不終止的根因。
+> [#455](https://github.com/NiranX-music/Nexdune/issues/455) 最初 think-mode 迴圈與生成不終止的根因。
 > gs64 修復了受控的 per-row A/B 問題，但不是通用的重複或 EOS starvation 防護。
 > MTP head 也必須是 **int8，而非 int4**（int4 的草稿接受率為 0%，
-> [#8](https://github.com/JustVugg/nexdune/issues/8)）：
+> [#8](https://github.com/NiranX-music/Nexdune/issues/8)）：
 > `ls -l <model>/out-mtp-*`——正確的 int8 大小為 `3527131672 / 5366238584 / 1065950496`。
 
 你也可以自行從 FP8 來源轉換——只需一條可續傳的指令，且任何時候都不需要
@@ -346,7 +345,6 @@ nexdune 最初是由一人使用 12 核心、25 GB RAM 的筆電開發；
 
 - ⭐ 為儲存庫加星並分享；
 - 🐛 以 issue 提交你的硬體 benchmark 數據——實測資料比任何其他事都更能推動專案；
-- 💬 加入 [Discord 社群](https://discord.gg/RXV83nSZdk)，討論實驗、硬體數據與研究方向；
 - 💬 若想贊助開發或捐贈硬體，請透過 GitHub issues 聯絡。
 
 ## 儲存庫結構
@@ -379,9 +377,7 @@ docs/                     參考文件、實驗與媒體檔
 
 ## 為什麼叫做「nexdune」
 
-蜂鳥只有幾公克重，能在原地懸停，並在一天內造訪上千朵花。
-這套引擎只用蜂鳥般的配給，就能讓 744B 參數的巨人運轉：
-25 GB RAM、十二個 CPU 核心，以及對硬碟的大量耐心。
+Nexdune 將儲存、RAM 與 VRAM 連接為統一連貫的流式記憶體階層——如同沙丘般在階層之間流動權重，讓前沿模型在消費級硬體上無損運行。
 
 ## 授權條款
 

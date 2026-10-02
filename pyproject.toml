@@ -10,7 +10,7 @@ readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.10"
 authors = [
-    {name = "JustVugg"},
+    {name = "NiranX"},
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -40,11 +40,10 @@ bench = [
 
 [project.scripts]
 nexdune = "nexdune.cli:main"
-nexdune = "nexdune.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/JustVugg/nexdune"
-Issues = "https://github.com/JustVugg/nexdune/issues"
+Homepage = "https://github.com/NiranX-music/Nexdune"
+Issues = "https://github.com/NiranX-music/Nexdune/issues"
 
 [tool.setuptools.dynamic]
 version = {attr = "nexdune._version.__version__"}

@@ -620,7 +620,7 @@ static inline void nexdune_print_launcher_help(const char *engine)
         "The launcher needs Python 3 and picks the right engine for the model.\n"
         "(Running the engine by hand: it reads the model directory from the\n"
         "SNAP environment variable, e.g. SNAP=<model directory> ./%s ...)\n"
-        "Getting a model, step by step: https://github.com/JustVugg/nexdune"
+        "Getting a model, step by step: https://github.com/NiranX-music/Nexdune"
         "/blob/main/docs/quickstart.md\n",
         engine, run, run, run, run, engine);
     nexdune_hold_console();

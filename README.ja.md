@@ -3,13 +3,6 @@
 </p>
 
 <p align="center">
-  <a href="https://justvugg.github.io/nexdune"><img src="https://img.shields.io/badge/website-justvugg.github.io%2Fnexdune-1f6feb" alt="Website"></a>
-  <a href="https://github.com/JustVugg/nexdune/releases"><img src="https://img.shields.io/github/v/release/JustVugg/nexdune?color=2ea043" alt="Latest release"></a>
-</p>
-
-<p align="center">
-  <a href="https://justvugg.github.io/nexdune"><b>Website</b></a> ·
-  <a href="https://discord.gg/RXV83nSZdk"><b>Discord</b></a> ·
   <a href="README.md">English</a> · <a href="README.zh-CN.md">简体中文</a> · <a href="README.zh-TW.md">繁體中文</a> · <a href="README.it.md">Italiano</a> · 日本語
 </p>
 
@@ -39,7 +32,7 @@ Nexdune は VRAM・RAM・ストレージを単一のマルチティア階層と�
 
 ```
 $ ./nexdune chat
-  🐦 nexdune v1.12.1 — GLM-5.2 · 744B MoE · int4 · streaming CPU
+  nexdune v1.12.1 — GLM-5.2 · 744B MoE · int4 · streaming CPU
   ✓ ready in 32s · resident 9.9 GB
   › ciao!
   ◆ Ciao! 😊 Come posso aiutarti oggi?
@@ -57,7 +50,7 @@ VRAM/RAM/ディスクのティアバー、隅にはライブのミニ脳を表�
 <p align="center">
   <img src="docs/media/nexdune-brain.png" width="900" alt="Brain ページ — GLM-5.2 の計測されたエキスパートアトラスを皮質として描画、入れる 10 の領域">
 </p>
-<p align="center"><em><strong>Brain</strong> ページの <strong>Explore</strong> 表示: GLM-5.2 の<a href="https://github.com/JustVugg/nexdune/issues/175">計測されたエキスパートアトラス</a>を皮質として描画します。
+<p align="center"><em><strong>Brain</strong> ページの <strong>Explore</strong> 表示: GLM-5.2 の<a href="https://github.com/NiranX-music/Nexdune/issues/175">計測されたエキスパートアトラス</a>を皮質として描画します。
 特性が明らかになった 13,260 個のエキスパートが 10 の領域（Python、SQL、数学、詩、法律、中国語…）に分かれ、位置は学習された埋め込みではなく
 計測されたルーティング親和性です。領域を選ぶとその中に入れます。<strong>Live routing</strong> 表示は実際に動いているモデルに切り替わり、
 エキスパートごとに 1 セル、色はストレージのティア、1 ターンでルーティングされたエキスパートは白く光ります。</em></p>
@@ -139,7 +132,7 @@ TTFT、エキスパートヒット率、読み込みバイト数、品質チェ�
 再実行し、生のログを添付してください。まずは
 [CONTRIBUTING.md](CONTRIBUTING.md) から始め、
 [ベンチマークプロトコル](docs/benchmarking.md) と比較したうえで、
-[実験 issue を作成](https://github.com/JustVugg/nexdune/issues/new) してください。
+[実験 issue を作成](https://github.com/NiranX-music/Nexdune/issues/new) してください。
 ここでは、説明のつかない速い数値よりも、よく制御された失敗のほうが価値があります。
 
 ## アイデア
@@ -168,7 +161,7 @@ TTFT、エキスパートヒット率、読み込みバイト数、品質チェ�
 1 レイヤー先を走ってプリフェッチがステージングのレイテンシを隠し、そして JIT と同様に、
 エンジンはあなたのワークロードを学習します。使えば使うほど、適切なエキスパートがホットになっていきます。
 これが機能するのは、ルーティングに計測可能な構造があるからです（
-[エキスパートアトラス](https://github.com/JustVugg/nexdune/issues/175) を参照）。
+[エキスパートアトラス](https://github.com/NiranX-music/Nexdune/issues/175) を参照）。
 そして構造はキャッシュ可能です。
 
 エンジンは単一の C ファイル（`c/nexdune.c`）と小さなヘッダ群だけで構成されています。BLAS も、
@@ -246,7 +239,7 @@ NEXDUNE_DISK_WEIGHTS=9,3 ...   # オプション: プライマリ,ミラーの�
 エキスパートにルーティングされるかを記録し（`.nexdune_usage`、ターンごとに更新）、最もホットな
 ものを自動でピン留めします — nexdune は文字どおり、使えば使うほど速くなります。マルチソケットの
 ホストでは、`NEXDUNE_NUMA=1` によって常駐する重みをメモリコントローラ間でインターリーブします
-（[#82](https://github.com/JustVugg/nexdune/issues/82)）。
+（[#82](https://github.com/NiranX-music/Nexdune/issues/82)）。
 
 モデル全体を置けない 2 台目のドライブ向けに、Nexdune はすでに学習しているエキスパート履歴から
 部分ミラーの優先順位を付けられます。まずいくつかの代表的なプロンプトを実行して `.nexdune_usage` に
@@ -303,9 +296,9 @@ DSA スパースアテンション（GLM-5.2 の lightning indexer）は忠実�
 GLM-5.2 のネイティブ MTP ヘッドがトークンをドラフトし、メインモデルが 1 回のバッチ化された
 フォワードでそれを検証します — 効果がある場合はフォワードあたり 2.2〜2.8 トークン。苦労して
 得た 2 つのルールがデフォルトとして組み込まれています。MTP ヘッドは **int8** でなければならないこと
-（int4 のヘッドは受理率が 0〜4% に崩壊します、[#8](https://github.com/JustVugg/nexdune/issues/8)）、
+（int4 のヘッドは受理率が 0〜4% に崩壊します、[#8](https://github.com/NiranX-music/Nexdune/issues/8)）、
 そしてドラフトと検証は **同じ関数** を計算しなければならないこと — `SPEC_PIN=1` は両者を
-1 つのカーネルファミリーに固定します（詳しい調査の経緯は [#163](https://github.com/JustVugg/nexdune/issues/163) にあります）。
+1 つのカーネルファミリーに固定します（詳しい調査の経緯は [#163](https://github.com/NiranX-music/Nexdune/issues/163) にあります）。
 文法強制ドラフト（[`GRAMMAR=file.gbnf`](docs/grammar-draft.md)）は、制約付き JSON 出力で
 ほぼタダで受理率を上げます。投機的デコードが正味でプラスになるかはキャッシュの温まり具合に
 依存します — 計測し、効果がなければ `DRAFT=0` を使ってください。
@@ -321,15 +314,15 @@ GLM-5.2 のネイティブ MTP ヘッドがトークンをドラフトし、メ�
 
 - **6× RTX 5090、完全常駐:** デコード 5.8〜6.8 tok/s、TTFT 約 13 秒
   （[実験ログ](docs/experiments/glm52-6x5090-2026-07-12.md)）
-- **128 GB の CPU のみのデスクトップ:** ウォーム時 約 1.8 tok/s（[#200](https://github.com/JustVugg/nexdune/issues/200)）
+- **128 GB の CPU のみのデスクトップ:** ウォーム時 約 1.8 tok/s（[#200](https://github.com/NiranX-music/Nexdune/issues/200)）
 - **RTX 5070 Ti 1 枚のラップトップ級マシン:** GPU 常駐パイプラインで 1.07 tok/s
-  （[#273](https://github.com/JustVugg/nexdune/issues/273)）
+  （[#273](https://github.com/NiranX-music/Nexdune/issues/273)）
 - **25 GB の開発マシン:** コールド時 0.05〜0.1 tok/s — このプロジェクトが始まった実証済みの下限であり、
   今も誠実なベースラインです。
 
 品質は仮定ではなく計測されています。int4 コンテナの量子化コストと、スケール粒度/回転の
 アブレーションは [docs/benchmarks.md](docs/benchmarks.md#quality-benchmark) と
-[#108](https://github.com/JustVugg/nexdune/issues/108)/[#81](https://github.com/JustVugg/nexdune/issues/81) にあります。
+[#108](https://github.com/NiranX-music/Nexdune/issues/108)/[#81](https://github.com/NiranX-music/Nexdune/issues/81) にあります。
 
 ## はじめに
 
@@ -339,7 +332,7 @@ GLM-5.2 のネイティブ MTP ヘッドがトークンをドラフトし、メ�
 ### 1. nexdune を入手する
 
 **ビルド済みリリースをダウンロード** — Linux、macOS、Windows に対応し、コンパイラは不要です。
-[Releases](https://github.com/JustVugg/nexdune/releases) から自分のプラットフォーム用の
+[Releases](https://github.com/NiranX-music/Nexdune/releases) から自分のプラットフォーム用の
 アーカイブを取得して展開します:
 
 ```bash
@@ -355,7 +348,7 @@ API ゲートウェイは Python スクリプトですが、エンジン自体�
 **またはソースからビルド** — OpenMP 対応の `gcc`（または clang）が必要です:
 
 ```bash
-git clone https://github.com/JustVugg/nexdune && cd nexdune/c
+git clone https://github.com/NiranX-music/Nexdune && cd Nexdune/c
 ./setup.sh                                # gcc/OpenMP を確認し、ビルドとセルフテストを実行
 ```
 
@@ -372,11 +365,11 @@ git clone https://github.com/JustVugg/nexdune && cd nexdune/c
 
 > ⚠️ 古い行単位 int4 のミラー（`mateogrgic/…`、`jlnsrk/…`）ではなく、上記の **gs64** コンテナを
 > 使ってください。それらは品質が約 9 ポイント劣ることが計測されており、
-> [#455](https://github.com/JustVugg/nexdune/issues/455) で報告された当初の思考モードのループや
+> [#455](https://github.com/NiranX-music/Nexdune/issues/455) で報告された当初の思考モードのループや
 > 終わらない生成の根本原因でした。gs64 コンテナは制御された行単位の A/B で見られたそれらの問題を
 > 解消しましたが、繰り返しや EOS 欠乏に対する汎用的なガードではありません。MTP ヘッドも
 > **int4 ではなく int8** である必要があります
-> （int4 → ドラフト受理率 0%、[#8](https://github.com/JustVugg/nexdune/issues/8)）:
+> （int4 → ドラフト受理率 0%、[#8](https://github.com/NiranX-music/Nexdune/issues/8)）:
 > `ls -l <model>/out-mtp-*` — int8（正しい）なら 3 ファイルで `3527131672 / 5366238584 / 1065950496`、
 > または単一の `out-mtp-00000.safetensors` で `9959321520` バイトです
 > （推奨コンテナの現在のアップロードは 1 ファイルで配布されています: 中身は同じ
@@ -398,7 +391,7 @@ GLM-5.2 がリファレンスモデルですが、同じストリーミング手
 `config.json` からバイナリを選びます）:
 
 > **それぞれに必要なもの。** これらは大きく異なり、2 つを並べて読んだ人が要件が矛盾していると
-> 誤解したこともあります（[#191](https://github.com/JustVugg/nexdune/issues/191)）。矛盾してはいません —
+> 誤解したこともあります（[#191](https://github.com/NiranX-music/Nexdune/issues/191)）。矛盾してはいません —
 > 別々のモデルなのです。**どれも GPU は必要ありません。**
 >
 > | モデル | 重み用のディスク | RAM | GPU |
@@ -593,7 +586,6 @@ nexdune は、RAM 25 GB の 12 コアのラップトップ上で、1 人のプ�
 - ⭐ リポジトリにスターを付けて共有してください。
 - 🐛 あなたのハードウェアでのベンチマーク数値を添えて issue を作成してください — データポイントは
   何よりもこのプロジェクトを前進させます。
-- 💬 [Discord コミュニティ](https://discord.gg/RXV83nSZdk) に参加して、実験、ハードウェアでの結果、
   研究の方向性について議論してください。
 - 💬 開発のスポンサーやハードウェアの寄贈については、GitHub の issue からご連絡ください。
 
@@ -646,9 +638,8 @@ docs/                     リファレンスドキュメント、実験、メデ
 
 ## なぜ「nexdune」なのか
 
-ハチドリ（イタリア語で nexdune）は体重わずか数グラムで、空中にとどまり、1 日に千もの花を訪れます。
-このエンジンは、7,440 億パラメータの巨人をハチドリの食事量で生かし続けます: RAM 25 GB、
-CPU 12 コア、そしてディスクへのたっぷりの忍耐です。
+Nexdune は、ストレージ、RAM、VRAM を単一の一貫したストリーミング メモリ階層に統合し、
+砂丘のように階層間で重みを移動させることで、フロンティア モデルをコンシューマー ハードウェア上で妥協なく動作させます。
 
 ## 謝辞
 

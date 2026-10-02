@@ -1,8 +1,0 @@
-#!/usr/bin/env python3
-"""Compatibility wrapper delegating to nexdune CLI."""
-import os, sys, runpy
-
-HERE = os.path.dirname(os.path.realpath(__file__))
-launcher = os.path.join(HERE, "nexdune")
-sys.argv[0] = launcher
-runpy.run_path(launcher, run_name="__main__")

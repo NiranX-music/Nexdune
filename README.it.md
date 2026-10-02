@@ -3,7 +3,6 @@
 </p>
 
 <p align="center">
-  <a href="https://discord.gg/RXV83nSZdk"><b>Discord</b></a> ·
   <a href="README.md">English</a> · <a href="README.zh-CN.md">简体中文</a> · <a href="README.zh-TW.md">繁體中文</a> · Italiano · <a href="README.ja.md">日本語</a>
 </p>
 
@@ -34,7 +33,7 @@ ma non ridefinire il modello di nascosto.
 
 ```
 $ ./nexdune chat
-  🐦 nexdune v1.12.1 — GLM-5.2 · 744B MoE · int4 · streaming CPU
+  nexdune v1.12.1 — GLM-5.2 · 744B MoE · int4 · streaming CPU
   ✓ ready in 32s · resident 9.9 GB
   › ciao!
   ◆ Ciao! 😊 Come posso aiutarti oggi?
@@ -59,7 +58,7 @@ sicuro. Qui: <strong>request changes al 99.9%</strong>, entropia 0.005, 4 token 
 <p align="center">
   <img src="docs/media/nexdune-brain.png" width="900" alt="la pagina Brain: l'atlante misurato degli expert di GLM-5.2 disegnato come una corteccia, dieci regioni da esplorare">
 </p>
-<p align="center"><em>La pagina <strong>Brain</strong>, <strong>Explore</strong>: l'<a href="https://github.com/JustVugg/nexdune/issues/175">atlante misurato degli expert</a> di GLM-5.2
+<p align="center"><em>La pagina <strong>Brain</strong>, <strong>Explore</strong>: l'<a href="https://github.com/NiranX-music/Nexdune/issues/175">atlante misurato degli expert</a> di GLM-5.2
 disegnato come una corteccia. 13.260 expert caratterizzati in dieci regioni (Python, SQL, matematica, poesia, legge, cinese…);
 la posizione deriva dall'affinità di routing misurata, non da un embedding appreso. Si sceglie una regione e ci si entra.
 <strong>Live routing</strong> passa al modello in esecuzione: una cella per expert, il colore è il livello di archiviazione, e ogni
@@ -141,7 +140,7 @@ throughput, TTFT, expert hit, byte letti e controllo qualità; cambia una sola
 variabile, ripeti e allega i log grezzi. Parti da
 [CONTRIBUTING.md](CONTRIBUTING.md), confronta il
 [protocollo di benchmark](docs/benchmarks.md), quindi
-[apri una issue di esperimento](https://github.com/JustVugg/nexdune/issues/new).
+[apri una issue di esperimento](https://github.com/NiranX-music/Nexdune/issues/new).
 Un fallimento controllato vale più di un numero veloce senza spiegazione.
 
 ## L'idea
@@ -193,7 +192,7 @@ impara**: il motore registra quali expert il *tuo* carico di lavoro instrada
 (`.nexdune_usage`, aggiornato a ogni turno) e fissa automaticamente i più caldi —
 nexdune diventa letteralmente più veloce man mano che lo usi. Sugli host
 multi-socket, `NEXDUNE_NUMA=1` interlaccia i pesi residenti tra i controller di
-memoria ([#82](https://github.com/JustVugg/nexdune/issues/82)).
+memoria ([#82](https://github.com/NiranX-music/Nexdune/issues/82)).
 
 ### Mai aspettare il disco due volte
 
@@ -226,9 +225,9 @@ La testa MTP nativa di GLM-5.2 propone token che il modello principale verifica
 in un unico forward batch — 2.2–2.8 token/forward quando conviene. Due regole
 conquistate a caro prezzo sono i default: la testa MTP deve essere **int8** (le
 teste int4 crollano al 0–4% di accettazione,
-[#8](https://github.com/JustVugg/nexdune/issues/8)), e draft e verifica devono
+[#8](https://github.com/NiranX-music/Nexdune/issues/8)), e draft e verifica devono
 calcolare **la stessa funzione** — `SPEC_PIN=1` fissa entrambi sulla stessa
-famiglia di kernel ([#163](https://github.com/JustVugg/nexdune/issues/163)
+famiglia di kernel ([#163](https://github.com/NiranX-music/Nexdune/issues/163)
 contiene l'intera indagine forense). I draft forzati da grammatica
 ([`GRAMMAR=file.gbnf`](docs/grammar-draft.md)) aggiungono accettazione quasi
 gratuita sull'output JSON vincolato. Se la speculazione conviene dipende dalla
@@ -246,16 +245,16 @@ Punti salienti dalle [tabelle benchmark complete](docs/benchmarks.md):
 - **6× RTX 5090, residenza completa:** 5.8–6.8 tok/s in decode, TTFT ~13 s
   ([log dell'esperimento](docs/experiments/glm52-6x5090-2026-07-12.md));
 - **desktop solo-CPU da 128 GB:** ~1.8 tok/s a cache calda
-  ([#200](https://github.com/JustVugg/nexdune/issues/200));
+  ([#200](https://github.com/NiranX-music/Nexdune/issues/200));
 - **singola RTX 5070 Ti, classe laptop:** 1.07 tok/s tramite la pipeline
-  GPU-residente ([#273](https://github.com/JustVugg/nexdune/issues/273));
+  GPU-residente ([#273](https://github.com/NiranX-music/Nexdune/issues/273));
 - **macchina di sviluppo da 25 GB:** 0.05–0.1 tok/s a freddo — il punto di
   partenza dimostrato da cui è nato il progetto, e ancora oggi la baseline onesta.
 
 La qualità è misurata, non presunta: il costo di quantizzazione del container
 int4 e le ablazioni su granularità delle scale e rotazione sono in
 [docs/benchmarks.md](docs/benchmarks.md#quality-benchmark) e
-[#108](https://github.com/JustVugg/nexdune/issues/108)/[#81](https://github.com/JustVugg/nexdune/issues/81).
+[#108](https://github.com/NiranX-music/Nexdune/issues/108)/[#81](https://github.com/NiranX-music/Nexdune/issues/81).
 
 ## Per iniziare
 
@@ -267,7 +266,7 @@ Ti servono due cose: **il programma** (poche centinaia di KB) e **il modello**
 
 **Scarica una release già compilata** — Linux, macOS e Windows, nessun
 compilatore necessario. Prendi l'archivio della tua piattaforma dalla pagina
-[Releases](https://github.com/JustVugg/nexdune/releases) e scompattalo:
+[Releases](https://github.com/NiranX-music/Nexdune/releases) e scompattalo:
 
 ```bash
 mkdir nexdune && tar xzf nexdune-v1.8.0-linux-x86_64.tar.gz -C nexdune && cd nexdune
@@ -283,7 +282,7 @@ gateway API sono script Python, mentre il motore è C puro senza dipendenze.
 **Oppure compila dai sorgenti** — servono `gcc` (o clang) con OpenMP:
 
 ```bash
-git clone https://github.com/JustVugg/nexdune && cd nexdune/c
+git clone https://github.com/NiranX-music/Nexdune && cd Nexdune/c
 ./setup.sh                                # verifica gcc/OpenMP, compila, autotest
 ```
 
@@ -307,11 +306,11 @@ quindi la decodifica speculativa resta disattivata:
 > ⚠️ Usa il container **gs64** qui sopra, non i vecchi mirror int4 per-row
 > (`mateogrgic/…`, `jlnsrk/…`): misurano circa 9 punti percentuali in meno sulla
 > qualità e causavano i loop in think-mode e le generazioni senza termine originali
-> di [#455](https://github.com/JustVugg/nexdune/issues/455). Il container gs64 ha
+> di [#455](https://github.com/NiranX-music/Nexdune/issues/455). Il container gs64 ha
 > corretto quegli A/B per-row controllati, ma non è una protezione generale contro
 > ripetizioni o EOS starvation. Anche la testa MTP deve essere **int8, non int4**
 > (int4 → 0% di accettazione dei draft,
-> [#8](https://github.com/JustVugg/nexdune/issues/8)):
+> [#8](https://github.com/NiranX-music/Nexdune/issues/8)):
 > `ls -l <modello>/out-mtp-*` — int8 (corretto) è `3527131672 / 5366238584 / 1065950496`.
 
 Oppure converti tu stesso dalla sorgente FP8 — un unico comando riprendibile che
@@ -406,7 +405,6 @@ Se ti è utile:
 - ⭐ metti una stella al repository e condividilo;
 - 🐛 apri issue con i numeri di benchmark del tuo hardware — i datapoint
   fanno avanzare questo progetto più di qualsiasi altra cosa;
-- 💬 entra nella [comunità Discord](https://discord.gg/RXV83nSZdk) per discutere
   esperimenti, risultati hardware e direzioni di ricerca;
 - 💬 contattaci via GitHub issues per sponsorizzare lo sviluppo o donare hardware.
 

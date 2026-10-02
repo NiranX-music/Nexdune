@@ -20,9 +20,9 @@ is safe on any machine. See also [SETTINGS.md](SETTINGS.md) and
 | `PILOT=1` | router-lookahead disk prefetch (see below) |
 | `URING=1` | Linux-only batched expert I/O (implies `PIPE=1`) |
 | `PIPE=0` | disable the async expert-load pool (default ON — overlaps `pread` with matmul, −18% disk service) |
-| `DIRECT=1` | O_DIRECT expert reads (measured **+65%** alone on a Strix Halo, [#200](https://github.com/JustVugg/nexdune/issues/200)) |
-| `NEXDUNE_NUMA=1` | interleave resident weights across NUMA nodes on multi-socket hosts ([#82](https://github.com/JustVugg/nexdune/issues/82)) |
-| `CACHE_ROUTE=1` | cache-aware max-rank routing (opt-in, [#199](https://github.com/JustVugg/nexdune/issues/199)) |
+| `DIRECT=1` | O_DIRECT expert reads (measured **+65%** alone on a Strix Halo, [#200](https://github.com/NiranX-music/Nexdune/issues/200)) |
+| `NEXDUNE_NUMA=1` | interleave resident weights across NUMA nodes on multi-socket hosts ([#82](https://github.com/NiranX-music/Nexdune/issues/82)) |
+| `CACHE_ROUTE=1` | cache-aware max-rank routing (opt-in, [#199](https://github.com/NiranX-music/Nexdune/issues/199)) |
 | `AUTOPIN=0` | disable the learning cache's auto-pin |
 | `CAP_RAISE=0` | don't auto-grow the expert cache |
 | `KVSAVE=0` | disable KV-cache persistence |
@@ -165,7 +165,7 @@ The engine records which experts your usage actually routes to (`.nexdune_usage`
 next to the model, updated every turn) and at startup automatically pins the
 hottest ones in spare RAM — nexdune literally gets faster the more you use it.
 `PIN=auto` seeds the pin directly from the live usage history
-([#301](https://github.com/JustVugg/nexdune/pull/301)).
+([#301](https://github.com/NiranX-music/Nexdune/pull/301)).
 
 **The expert cache auto-sizes to your RAM** (since 2026-07-10): the engine
 *raises* the LRU cap to fill your `--ram` budget instead of only lowering it.
@@ -190,18 +190,18 @@ next-layer expert readahead from a dedicated I/O thread while the current layer
 computes. `PILOT_REAL=1` moves the prefetched loads off the critical path
 (measured +11pp hit rate on a big-cache host), and `PILOT_TWO=1` folds the
 computed shared-expert into the prediction (+3% recall,
-[#200](https://github.com/JustVugg/nexdune/issues/200)). On disk-saturated
+[#200](https://github.com/NiranX-music/Nexdune/issues/200)). On disk-saturated
 hosts hint-only PILOT can be net negative — measure on yours.
 
 ## Speculation and reproducibility
 
 Speculative decoding requires that the draft and verify paths compute the same
-function — `SPEC_PIN=1` (default since [#294](https://github.com/JustVugg/nexdune/pull/294))
+function — `SPEC_PIN=1` (default since [#294](https://github.com/NiranX-music/Nexdune/pull/294))
 pins every forward issued while drafts are live to the platform's S=1 kernel
 family. For byte-exact reproducibility across runs: `DRAFT=0`, plus `IDOT=0
 NEXDUNE_CUDA=0` if you also want kernel-family/GPU independence. Acceptance
 percentages are not comparable across engine versions under `--topp`
-([#163](https://github.com/JustVugg/nexdune/issues/163) has the full story).
+([#163](https://github.com/NiranX-music/Nexdune/issues/163) has the full story).
 
 ## Approximate mode: `DEGRADE_ZERO` (opt-in, OLMoE-calibrated)
 
@@ -244,7 +244,7 @@ DEGRADE_ZERO=1 DEGRADE_TAU=0.03 NEXDUNE_MODEL=/nvme/glm52_i4 ./nexdune chat
 ```
 
 See [ENVIRONMENT.md](ENVIRONMENT.md) for the full variable reference and
-[issue #865](https://github.com/JustVugg/nexdune/issues/865) for the
+[issue #865](https://github.com/NiranX-music/Nexdune/issues/865) for the
 measurement methodology.
 
 ## Conversations reopen warm

@@ -4,7 +4,7 @@
 # o rigenerato con: nexdune convert --model <dir-su-ext4/NVMe>
 set -e
 cd "$(dirname "$0")"
-echo "🐦 nexdune — setup"
+echo "nexdune — setup"
 
 UNAME_S=$(uname -s)
 OMP_PROBE=".nexdune-omp-probe-$$"

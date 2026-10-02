@@ -15,7 +15,7 @@ across kernels and cache states is spelled out in [Validation](#validation).
 ## Windows release (recommended)
 
 Windows users do not need to build or copy an engine manually. Download and
-unpack the [latest Windows release](https://github.com/JustVugg/nexdune/releases/latest),
+unpack the [latest Windows release](https://github.com/NiranX-music/Nexdune/releases/latest),
 then start Nexdune through the release launcher:
 
 ```powershell

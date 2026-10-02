@@ -44,7 +44,7 @@ if "%~1"=="" (
     echo double-clicking one only flashes a window.
     echo.
     echo Getting a model, step by step:
-    echo     https://github.com/JustVugg/nexdune/blob/main/docs/quickstart.md
+    echo     https://github.com/NiranX-music/Nexdune/blob/main/docs/quickstart.md
     call :hold
     exit /b 0
 )
