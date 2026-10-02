@@ -170,18 +170,18 @@ const en: Record<string, string> = {
   "topbar.clear": "Clear",
 
   // hero / empty state
-  "hero.title": "NEXDUNE ENGINE",
+  "hero.title": "COLIBRÌ ENGINE",
   "hero.subtitle": "Ask the giant.",
   "hero.tagline": "Keep the machine yours.",
-  "hero.description": "Connect to a local nexdune server and stream responses directly from your hardware. Nothing leaves the endpoint you choose.",
+  "hero.description": "Connect to a local colibrì server and stream responses directly from your hardware. Nothing leaves the endpoint you choose.",
   "prompts.routing": "Explain how expert routing works",
   "prompts.benchmark": "Write a small C benchmark",
   "prompts.caching": "Compare RAM and VRAM caching",
 
   // chat
   "chat.you": "You",
-  "chat.nexdune": "nexdune",
-  "chat.placeholder": "Message nexdune…",
+  "chat.colibri": "Nexdune",
+  "chat.placeholder": "Message Nexdune…",
   "chat.inputHint": "Enter to send · Shift+Enter for newline",
   "chat.stop": "Stop generation",
   "chat.send": "Send message",
@@ -230,7 +230,7 @@ const en: Record<string, string> = {
   "profile.diskNote": "Disk service is time spent reading experts on I/O threads; it overlaps with compute, so only the I/O wait the compute thread felt counts inside the wall-time stack. With multiple KV sessions the shares describe the whole engine over the turn's window.",
 
   // error boundary
-  "error.title": "nexdune UI hit an error",
+  "error.title": "colibrì UI hit an error",
   "error.hint": "The engine is unaffected. Try refreshing.",
   "error.retry": "Retry",
 }
