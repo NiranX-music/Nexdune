@@ -1,0 +1,272 @@
+# Qwen3.6-35B-A3B on nexdune
+
+`c/qwen36.c` runs [Qwen/Qwen3.6-35B-A3B](https://huggingface.co/Qwen/Qwen3.6-35B-A3B)
+(35B total / ~3B active, Apache 2.0) — a hybrid architecture: 25% Gated
+Attention layers, 75% Gated DeltaNet (linear attention) layers, each followed
+by a streamed MoE block (256 experts, top-8 + 1 shared). Dense weights stay
+resident; routed experts stream from the container through an LRU + pinned
+cache. Development notes live in `docs/qwen36-phase01.md` /
+`qwen36-phase02.md`.
+
+Architecture-identical checkpoints (same config geometry, e.g.
+KAT-Coder-V2.5-Dev) run on this engine unchanged.
+
+## Quickstart
+
+Pre-converted containers (int4 experts, self-contained, ~20 GB):
+
+```sh
+# group-scaled int4 (gs64) — recommended, see "Which container" below
+hf download Kreuzzelg/qwen36-35b-a3b-nexdune-i4-gs64 --local-dir ~/Models/qwen36_i4_gs64
+
+# per-row int4
+hf download Kreuzzelg/qwen36-35b-a3b-nexdune-i4 --local-dir ~/Models/qwen36_i4
+```
+
+or convert the original bf16 checkpoint yourself (~70 GB download):
+
+```sh
+python3 c/tools/convert_qwen36.py --repo Qwen/Qwen3.6-35B-A3B --out ~/Models/qwen36_i4_gs64 --gs 64
+```
+
+Build and chat:
+
+```sh
+make -C c qwen36
+NEXDUNE_MODEL=~/Models/qwen36_i4_gs64 ./c/nexdune chat
+```
+
+`nexdune` reads the model's `config.json` and matches its `model_type` against the
+family registry (`qwen3_5_moe` / `qwen3_5_moe_text` — an exact match, so other
+Qwen architectures are not claimed by this engine), picks it, and drives it over the serve protocol — `nexdune web` and
+`nexdune serve` (OpenAI-compatible API) work the same way.
+
+Direct invocation without the gateway:
+
+```sh
+SNAP=~/Models/qwen36_i4_gs64 TOK=~/Models/qwen36_i4_gs64/tokenizer.json \
+N_NEW=200 ./c/qwen36 256 4 prompt.txt
+```
+
+## CPU prefill batching
+
+On AVX2/FMA CPUs, dense int8 projections process two prompt rows per weight
+decode.  The same kernel is used by attention, the router, DeltaNet projections,
+and the CPU shared expert.  `S=1` decode keeps the original four-register GEMV,
+and non-AVX2 builds retain the established per-row implementation.  The shared
+expert additionally batches gate/up/down calls across prompt rows with at most
+32 MiB of temporary activations; the CUDA expert tier keeps its per-token shared
+work so it can continue to overlap the in-flight GPU groups.
+
+Both optimizations are bit-exact and on by default.  For controlled A/Bs,
+`QWEN_DENSE_BATCH=0` restores per-row dense-int8 GEMVs and
+`QWEN_SHARED_BATCH=0` restores per-row shared-expert calls.  A positive
+`QWEN_SHARED_BATCH=N` limits each shared chunk to `N` rows.
+
+Requirements: ~30 GB RAM for comfortable expert caching and NVMe storage for
+the container. The default build is CPU-only; `make -C c qwen36 CUDA=1` adds
+the optional CUDA VRAM expert tier documented in
+[`qwen36-cuda-tier.md`](qwen36-cuda-tier.md). The same tier builds for AMD
+through ROCm with `make -C c qwen36 HIP=1 HIP_ARCH=<gfx>` (for example
+`HIP_ARCH=gfx1151`, with `ROCM_HOME` and `HIPCC` pointing at the toolchain):
+measured on a Ryzen AI MAX+ 395, output bit-identical to the CPU path and 2.4x
+faster than CPU-only (#1502).
+
+## The expert kernel
+
+Routed experts run through `c/expert_ffn.h`, a header shared with the other
+MoE engines rather than a set of GEMVs of this engine's own. Three things
+changed with it, measured on the real gs64 container at full residency on an
+8-core AVX-512 box (61 GB, DDR5-5600, 58 GB/s DRAM read):
+
+- **The int4 stays int4.** The engine used to unpack every expert to int8 at
+  load; the kernel keeps the container's nibbles, repacked once into a planar
+  layout where `and 0x0F` yields 32 elements in order and `srli 4` the other
+  32, so a block costs no unpack instruction. Half the bytes per token and half
+  the expert-cache RSS: peak RSS at cap 256 went from 25 GB to 15 GB.
+- **A layer is a unit of work.** gate+up share one pass over the activation,
+  and threads split (expert, row-chunk) items: two OpenMP regions per layer
+  instead of 3 x top-k. A prompt row routed to an expert another row already
+  used reads that expert from cache, not DRAM.
+- **Same tokens.** Activations stay f32 (the kernel also has an int8
+  activation mode, `mode 1`, not wired in here: same policy as `IDOT`). The
+  only difference from the old path is the accumulation order inside a dot;
+  a 1024-token greedy decode on the real container is byte-identical, and CI
+  pins old vs new on a tiny int4 fixture at caps 1, 2, 8 and 16.
+
+Over a 1024-token greedy decode at cap 256 (same prompt, byte-identical
+text): 12.8 -> 15.7 tok/s, MoE per token 34 -> 20 ms on average and 30 -> 17
+ms in the last windows, peak RSS 29 -> 17 GB. Of the 20 ms, 11 are the kernel
+(the DRAM floor for the int4 bytes is 9) and 6 are the residual misses of a
+97.6% hit rate, fetched one at a time; that fetch is the next thing to
+overlap, not this kernel. `tests/test_expert_ffn` holds the numerics.
+`QWEN_EXPERT_KERNEL=0` restores the int8 path for A/Bs. The CUDA expert tier
+keeps its own path: it uploads the pair-layout int4 and computes misses from
+the int8 copy.
+
+## The dense trunk: integer dot products
+
+Every dense GEMV of a token, the DeltaNet in and out projections, the
+attention q/k/v/o, the shared expert and lm_head, used to multiply int8
+weights by f32 activations: each weight byte converted to f32 and fed to an
+FMA, eight weights per instruction. On a 16-core AVX-512 host lm_head
+(248320 x 2048 int8, 508 MB) ran at 29 GB/s on a memory bus that does 80:
+the kernel was the limit, and the dense part of the token is 1.9 GB of int8
+on the 35B, three times what the routed experts read.
+
+Since 1.12.1 the activation is quantized to int8 once per call (one scale,
+amax/127, the same contract the expert integer kernels use) and the products
+are integer: 32 weights per instruction on AVX2, 64 on AVX-512 VNNI, exact
+int32 sums scaled once per output. The routed experts take the same path for
+their activations. Measured on Qwen3.6-35B-A3B, 8 threads, 300 decoded
+tokens, every expert resident, perplexity on 4 x 512 tokens of English text:
+
+| | tok/s | ms/token: DeltaNet proj / out, attention, lm_head, expert compute | perplexity |
+|---|---|---|---|
+| f32 activations (1.12.0) | 6.71 | 21.9 / 8.6, 9.5, 12.6, 22.7 | 13.79 |
+| int8 activations, dense trunk (`NEXDUNE_DENSE_IDOT=1`) | 7.35 | 17.4 / 6.3, 7.7, 10.2, 22.7 | 13.92 (+1.0%) |
+| int8 activations, routed experts (`QWEN_EXPERT_ACT=i8`) | 7.20 | 21.9 / 8.6, 9.5, 12.6, 15.9 | 13.80 (+0.1%) |
+| both (the 1.12.1 default) | **8.23** (+22.6%) | 17.2 / 6.3, 7.5, 10.1, 15.6 | 13.97 (+1.3%) |
+
+Both are the default; `NEXDUNE_DENSE_IDOT=0` and `QWEN_EXPERT_ACT=f32`
+restore the f32 kernels, which stay bit-identical to their references.
+
+**int4 for the trunk is opt-in, per component.** `NEXDUNE_DENSE_BITS=4` stores
+the dense matrices as int4 in blocks of 64 with one scale per block (the
+planar layout of the grouped expert kernel) and halves the bytes the token
+reads, but the parts of the trunk pay 4 bits very differently, so
+`NEXDUNE_DENSE_INT4` picks which ones take it:
+
+| int4 on | tok/s | perplexity |
+|---|---|---|
+| nothing (int8) | 7.35 | 13.92 |
+| `lmhead` | 8.15 (lm_head 10.1 to 8.4 ms; the total is within noise of the cache warming) | 14.13 (+2.4% vs f32) |
+| `lmhead,dnproj,dnout` | | 14.56 (+5.6%) |
+| `lmhead,dnproj,dnout,shexp` | | 14.94 (+8.3%) |
+| everything (`attn` included) | 8.09 | 15.17 (+10%) |
+
+A least-squares refinement of the block scale was tried and changes nothing
+(15.16 against 15.17): the loss is the matrices' sensitivity, not the
+quantizer. If you take one, take `lmhead`: 254 MB less per token for the
+smallest cost.
+
+## Cache-aware routing (`CACHE_ROUTE`, off by default)
+
+The residual misses above are the lever's target. `CACHE_ROUTE=1` ports the
+GLM engine's max-rank re-routing ([CACHE_ROUTE.md](CACHE_ROUTE.md),
+arXiv:2412.00099) to this engine with two residency levels: inside the top-`M`
+window, a slot past the sacred top-`J` prefers an expert already in the VRAM
+tier, then one in the RAM cache, then the plain ranking. It is **lossy**: it
+changes which experts run, so the semantic contract is off while it is set and
+the footer prints what it cost, `route_agree` (overlap with the true top-K)
+and `route_kl` (mass KL), next to the swap and hit rates. Unset, the router
+is the original loop and the token ids are byte-identical; `ROUTE_AGREE=1`
+alone prints the meters at 100 % / 0 without touching routing.
+
+Qwen3.6 routes top-8 (plus the shared expert), so the default `ROUTE_J=2`
+leaves six substitutable slots per token; the tiny fixture routes top-2 and
+needs `ROUTE_J<2` to show any swap at all. A/B it the way the GLM doc does:
+same prompt and seed, tok/s and hit rate against agreement and KL, and treat
+`PPL=1` on a teacher-forced reference as the quality bar.
+
+## Which container?
+
+The gs64 container carries one scale per 64-weight group instead of one per
+row. On GLM, per-row int4 was the root cause of think-mode loops and
+never-terminating generations (#455), and group scales fixed them in
+controlled A/Bs — with `moe_intermediate_size=512`, Qwen's rows are short, so
+per-row quantization error concentrates the same way. The gs64 container costs
+~1.7 GB more on disk and a few percent on cold-start; warm decode speed is the
+same or slightly better.
+
+**Mixed: int8 `down`, int4 gate/up.** `convert_qwen36.py --ebits 4 --gs 64
+--down-bits 8` (`--down-gs` for grouped down scales, 0 = per row) writes one
+slab per expert with `down_proj` in int8 and gate/up as above -- 5.7 bits per
+weight against gs64's 4.5. It is the knob that produced the #1370 numbers on
+wikitext-2 (16 x 512 tokens): gs64 7.325, mixed 7.281, all experts int8 7.153,
+Ollama's Q4_K_M 7.147 -- `down` alone recovers a quarter of the gap to int8,
+the rest sits in gate/up, and at equal bits Q4_K_M's asymmetric quantizer is
+ahead. Keep it as a measurement tool and a middle step for boxes with RAM to
+spare; it is not the answer to the gap. The engine tells the layout apart by
+size and reads each matrix in its own format on the CPU path; the CUDA VRAM
+tier takes one format per expert and refuses a mixed container with a line
+(`NEXDUNE_CUDA=1 ignored`), so such a container runs CPU-only for now.
+
+## Which checkpoints, and what the banner calls them
+
+Two Qwen checkpoints declare `model_type: qwen3_5_moe_text` and resolve to
+this engine:
+
+| checkpoint | layers | experts | hidden | banner |
+|---|---|---|---|---|
+| Qwen/Qwen3.6-35B-A3B | 40 (10 attention) | 256, top-8 | 2048 | `Qwen3.6-35B-A3B · 35B MoE` |
+| Qwen/Qwen3.8-2.4T-A95B | 92 (23 attention) | 512, top-10 | 8192 | `Qwen3.8-2.4T-A95B · 2.4T MoE` |
+
+The registry names a checkpoint by its geometry (`display_variants` on the
+`qwen36` descriptor), so the banner says what is on disk. A config that
+matches neither, a tiny fixture for instance, is named by its own
+`model_type` and measured geometry rather than by a sibling's parameter
+count (#1045).
+
+The 2.4T checkpoint is **architecture-identical** to the 35B: same layer
+pattern, every engine guard holds, and the registry's planner puts its KV
+cache at 1.44 GiB for 8k context and 46 GiB at the 256k maximum, with a
+context-free DeltaNet state of 0.55 GiB. What this engine cannot do for it
+is hold the experts: the warmstart keeps every expert in RAM by design (see
+`--ram` below), which is ~1.4 TB of int4 for 2.4T. Serving it needs the
+disk-streaming design, not this one. The conversion and the geometry checks
+are in place so that work starts from a verified shape, not from a guess.
+
+### The converter's tensor contract
+
+Both checkpoints ship experts **fused** per layer (`mlp.experts.gate_up_proj`,
+`mlp.experts.down_proj`), a one-layer multi-token-prediction head (`mtp.*`,
+`mtp_num_hidden_layers: 1`), and the 35B additionally a vision tower
+(`visual.*`). `tools/qwen36_tensor_kinds.py` classifies every tensor name
+before the first shard is read: layer tensors are converted, `mtp.*` and
+`visual.*` are skipped **on purpose** and reported with a count, and a name
+the contract does not know stops the conversion. A converter that silently
+drops what it does not recognise produces a container that loads and is
+quietly missing a tensor; this one refuses instead (the GLM-5.3 precedent).
+`tests/test_qwen36_tensor_kinds.py` pins the contract to both real indexes.
+
+### Validating the 2.4T shape without a single weight
+
+`tools/make_qwen36_tiny.py --geometry qwen38-2p4t` builds a fixture with the
+2.4T's structural numbers at toy widths -- 92 layers, interval 4, 512 experts
+top-10, 16:1 attention heads, 8:1 DeltaNet heads -- and rewrites the shard
+into the real layout: fused experts plus an `mtp.*` head. The converter must
+split the one and skip the other, and the engine must match the transformers
+reference token for token. CI runs it at cache capacities 1, 2 and 512, and
+under ASan/UBSan. Locally:
+
+```sh
+cd c && make qwen36
+python3 tools/make_qwen36_tiny.py --geometry qwen38-2p4t --seed 3 \
+        --out q24 --ref-mode full --emit-ref q24/ref_full.json
+python3 tools/convert_qwen36.py --model q24 --out q24_c --ebits 8
+NEXDUNE_DENSE_I8=0 SNAP=q24_c ./qwen36 512 8 q24/ref_full.json
+```
+
+(`--seed 3`: the default seed collapses this geometry's reference to one
+repeated token, which a shape error could still reproduce; seed 3 yields
+twelve distinct tokens over sixteen.)
+
+## `--ram` is not honoured by this engine
+
+The engine reads no `RAM_GB`: `grep -c RAM_GB c/qwen36.c` returns 0, and passing
+`--ram` changes nothing. Said here rather than left to be discovered, because a
+flag that appears to work and does not is worse than one documented as
+unsupported.
+
+What sizes the expert cache instead depends on where the experts live. On the
+CPU path they stream from the container on demand, through the LRU described at
+the top of this page, and `--cap N` is the direct lever on how many slots per
+layer that cache holds. On the CUDA expert tier (#713) the hot set is resident
+in VRAM and `CUDA_EXPERT_GB` decides its size. Neither path consults the RAM
+budget.
+
+(Earlier revisions of this section said qwen36 does not stream experts at all,
+which contradicted the description at the top of the page and was wrong for the
+CPU path: `c/qwen36.c` reads experts on demand with `pread` plus
+`posix_fadvise(DONTNEED)` and caches them LRU. Reported in #1444.)
