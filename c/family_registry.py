@@ -1,5 +1,5 @@
-#!/usr/bin/env python3
-"""Authoritative model-family registry for Nexdune's Python control plane."""
+﻿#!/usr/bin/env python3
+"""Authoritative model-family registry for Colibri's Python control plane."""
 
 import os
 from dataclasses import dataclass
@@ -115,17 +115,17 @@ class FamilyDescriptor:
     # the trunk out of the VRAM budget before it counts hot experts. None: the
     # engine keeps its trunk on the CPU (or has none).
     trunk_inventory: object = None
-    # Lo script sotto tools/ che `nexdune convert` puo' guidare per questa famiglia,
-    # e le opzioni di `nexdune convert` che quello script accetta davvero.
+    # Lo script sotto tools/ che `coli convert` puo' guidare per questa famiglia,
+    # e le opzioni di `coli convert` che quello script accetta davvero.
     #
-    # #1368: `nexdune convert` lanciava convert_fp8_to_int4.py qualunque cosa gli si
+    # #1368: `coli convert` lanciava convert_fp8_to_int4.py qualunque cosa gli si
     # desse. Quel convertitore e' di GLM-5.2 e classifica i tensori per nome
     # PIATTO, mentre GLM-5.3-Flash annida il testuale sotto il wrapper vision:
     # `model.language_model.embed_tokens.weight` non corrisponde a nessuna regola
     # e cade nel fallback finale, che lo quantizza. Poi glm53.c lo legge con
-    # load_f32, rifiuta l'U8, e il motore muore dentro `nexdune web`.
+    # load_f32, rifiuta l'U8, e il motore muore dentro `coli web`.
     #
-    # Vuoto significa "nexdune non guida questa famiglia": non e' una lacuna, e'
+    # Vuoto significa "coli non guida questa famiglia": non e' una lacuna, e'
     # che il suo convertitore ha un'altra riga di comando (convert_qwen36.py usa
     # --out e --gs, convert_inkling_int4.py non ha --repo) o non serve affatto
     # (Qwen3.8 gira sul checkpoint ufficiale). In quel caso si lascia parlare la
@@ -178,7 +178,7 @@ def _glm_geometry(config, context, _model_dir):
     value = _required_int(config, "v_head_dim", "glm")
     state = layers * context * (kv_lora + rope) * 4
     index_dim = _optional_int(config, "index_head_dim", 0)
-    if index_dim and config.get("_nexdune_indexer_present", False):
+    if index_dim and config.get("_colibri_indexer_present", False):
         kinds = config.get("indexer_types")
         if isinstance(kinds, list):
             active = sum(kind == "full" for kind in kinds[:layers - 1])
@@ -874,7 +874,7 @@ def _dsv41_resident_inventory(name, size, _config, _dtype=None):
     behind a small LRU whose size is a runtime knob. Counted as dense they turn
     a 552B model that fits a workstation into one that needs 214 GB of RAM, and
     the plan then plans nothing: measured against the real checkpoint on a 61 GB
-    box, `nexdune plan` reported 214.3 GB of dense weights, 0% projected expert
+    box, `coli plan` reported 214.3 GB of dense weights, 0% projected expert
     residency and a cap of zero, for a model whose resident trunk is 11 GB.
     """
     return 0 if _DSV41_ENGRAM.match(name) else size
@@ -1158,12 +1158,12 @@ FAMILIES = (
         converter_accepts=("ebits", "io_bits", "xbits", "group_size"),
         converter_mtp_pass=True,
         display_scale="744B",
-        engine_artifact="nexdune",
+        engine_artifact="colibri",
         engine_aliases=("glm",),
-        engine_group="nexdune-core",
+        engine_group="colibri-core",
         internal_arch="glm",
-        build_target="nexdune",
-        process_names=("nexdune", "glm"),
+        build_target="colibri",
+        process_names=("colibri", "glm"),
         default_model_id="glm-5.2-nexdune",
         cli_adapter="glm",
         gateway_adapter="glm",
@@ -1268,7 +1268,7 @@ FAMILIES = (
         # links NOCUDA_LDFLAGS. Left at the default this advertised a VRAM tier.
         supports_accelerator=False,
         expert_inventory=_individual_expert_inventory(_GLM_EXPERT),
-        # nexdune convert routes to convert_olmoe_merged.py (d4d11ef dispatch);
+        # coli convert routes to convert_olmoe_merged.py (d4d11ef dispatch);
         # the converter takes no precision flags (--ebits / --group-size etc.).
         converter="convert_olmoe_merged.py",
         converter_accepts=(),
@@ -1319,10 +1319,10 @@ FAMILIES = (
         limits=FamilyLimits(8192, 262144, 1024, 8192, 1, 8, "Q36_MAXT"),
         capabilities=FamilyCapabilities(False, False, False, True),
         has_gateway_adapter=True,
-        # nexdune run stays unwired on purpose: cmd_run dispatches per arch after
+        # coli run stays unwired on purpose: cmd_run dispatches per arch after
         # this gate, and without a qwen36 branch the engine would inherit GLM's
         # prompt template -- a wrong template does not fail loudly, it degrades
-        # the answer. False gives the user "use nexdune chat or nexdune serve", which
+        # the answer. False gives the user "use coli chat or coli serve", which
         # is true and actionable; chat/serve/web all work through the gateway.
         has_cli_adapter=False,
         tune_prompt_template=(
@@ -1352,7 +1352,7 @@ FAMILIES = (
         limits=FamilyLimits(8192, 262144, 1024, 8192, 1, 1, "Q38_MAXT"),
         capabilities=FamilyCapabilities(True, False, False, True),
         has_gateway_adapter=True,
-        # Like Qwen3.6, direct `nexdune run` is intentionally not exposed until
+        # Like Qwen3.6, direct `coli run` is intentionally not exposed until
         # an engine-specific CLI prompt path exists; chat/serve use the gateway.
         has_cli_adapter=False,
         tune_prompt_template=(
@@ -1418,7 +1418,7 @@ FAMILIES = (
         # CPU-only: the engine links no CUDA/Metal/Vulkan path and its build rule
         # carries no backend object, so the planner must not offer a VRAM tier it
         # cannot execute. Left at the default True it wrote "VRAM 296.0 GB hot
-        # tier ... 100% projected expert residency" into `nexdune plan` for this
+        # tier ... 100% projected expert residency" into `coli plan` for this
         # model; resource_plan.py:945 is the gate and says the same thing in
         # words ("a CPU-only engine has no VRAM tier").
         supports_accelerator=False,
@@ -1431,12 +1431,12 @@ FAMILIES = (
         # at the gateway rather than desync the wire.
         capabilities=FamilyCapabilities(True, False, False, True),
         has_gateway_adapter=True,
-        # nexdune run stays unwired, for the reason qwen36 gives above and one more:
+        # coli run stays unwired, for the reason qwen36 gives above and one more:
         # cmd_run dispatches per arch after this gate, and with no deepseek_v41
         # branch of its own the launcher would fall through to GLM's binary and
         # GLM's prompt template. The engine speaks the SERVE protocol and nothing
         # else, so a one-shot has nowhere to go but the gateway -- which is what
-        # nexdune chat, nexdune serve and nexdune web already use.
+        # coli chat, coli serve and coli web already use.
         has_cli_adapter=False,
     ),
 )
@@ -1547,7 +1547,7 @@ def resolve_model(model_dir):
     except OSError as error:
         raise FamilyConfigError(
             f"cannot read config.json: {model}\n"
-            "  nexdune picks the engine from config.json, so nothing runs without it. Copy the\n"
+            "  coli picks the engine from config.json, so nothing runs without it. Copy the\n"
             "  checkpoint's config.json (with tokenizer.json and model.safetensors.index.json)\n"
             "  from the model repo next to the shards.") from error
     except json.JSONDecodeError as error:
@@ -1700,3 +1700,4 @@ def public_metadata(family):
             "thinking": family.capabilities.thinking,
         },
     }
+
