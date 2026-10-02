@@ -38,7 +38,7 @@ button, input, textarea, select { font: inherit; }
 button { cursor: pointer; }
 button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 
-.app-shell { min-height: 100vh; display: grid; grid-template-columns: 292px minmax(0, 1fr); background: radial-gradient(circle at 72% -20%, rgba(78,214,165,.08), transparent 34%), var(--background); }
+.app-shell { min-height: 100vh; height: 100vh; width: 100vw; display: flex; flex-direction: row; background: radial-gradient(circle at 72% -20%, rgba(78,214,165,.08), transparent 34%), var(--background); overflow: hidden; }
 .sidebar { position: sticky; top: 0; height: 100vh; overflow-y: auto; display: flex; flex-direction: column; gap: 24px; padding: 24px 20px; border-right: 1px solid var(--border); background: rgba(8,11,13,.86); backdrop-filter: blur(18px); }
 .brand-row { display: flex; align-items: center; gap: 12px; }
 .brand-mark { display: grid; place-items: center; width: 38px; height: 38px; border: 1px solid rgba(78,214,165,.3); border-radius: 12px; color: var(--primary); background: rgba(78,214,165,.08); transform: rotate(-4deg); }
@@ -190,30 +190,3 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-
   .prof-tiles { grid-template-columns: 1fr 1fr; }
   .prof-charts { grid-template-columns: 1fr; }
 }
-
-/* ── KaTeX math rendering ───────────────────────────────────────────────── */
-.md-math-display {
-  display: block;
-  overflow-x: auto;
-  padding: 0.75rem 0;
-  text-align: center;
-}
-.md-math-inline {
-  display: inline;
-  vertical-align: middle;
-}
-.md-math-error {
-  font-family: ui-monospace, monospace;
-  font-size: 0.8em;
-  color: #f87171;
-  background: rgba(248, 113, 113, 0.1);
-  border: 1px solid rgba(248, 113, 113, 0.25);
-  border-radius: 4px;
-  padding: 0.1em 0.4em;
-}
-.katex-display {
-  margin: 0.5em 0;
-  overflow-x: auto;
-  overflow-y: hidden;
-}
-.katex { font-size: 1.05em; }
