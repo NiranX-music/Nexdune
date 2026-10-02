@@ -1,38 +1,26 @@
-/** Nexus Monolith emblem; wordmark uses its Bytesized font.
+/** Original pixel mark from site/index.html; wordmark uses its Bytesized font.
  *
- * Saturated brand palette matches site/nexdune-icon.svg and works on both light and dark themes.
- */
+ * I colori sono quelli di assets/colibri-icon.svg, non inventati qui: e la
+ * stessa griglia (translate(7 21), celle da 14) quindi le due immagini non
+ * possono divergere per svista. Lo sfondo arrotondato di quel file NON viene
+ * riportato: qui il marchio sta sulla superficie dell'app, che ha gia la sua.
+ *
+ * Le tinte sono fisse e non seguono currentColor: sono sature abbastanza da
+ * reggere sia sul tema scuro sia sul chiaro. La parola accanto invece resta
+ * in currentColor, cosi segue il tema come il resto del testo. */
 export function Brand({ word = false }: { word?: boolean }) {
-  return (
-    <span className={word ? "nexdune-brand full" : "nexdune-brand"} aria-label="nexdune">
-      <svg viewBox="0 0 512 512" aria-hidden="true" stroke="none">
-        <defs>
-          <linearGradient id="nex-brand-bg" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stopColor="#0a0d14"/>
-            <stop offset="100%" stopColor="#05070a"/>
-          </linearGradient>
-          <linearGradient id="nex-brand-pri" x1="64" y1="64" x2="448" y2="448" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stopColor="#00f2fe"/>
-            <stop offset="50%" stopColor="#4facfe"/>
-            <stop offset="100%" stopColor="#6366f1"/>
-          </linearGradient>
-          <linearGradient id="nex-brand-dune" x1="120" y1="360" x2="380" y2="120" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stopColor="#f59e0b"/>
-            <stop offset="50%" stopColor="#fbbf24"/>
-            <stop offset="100%" stopColor="#00f2fe"/>
-          </linearGradient>
-        </defs>
-        <rect width="512" height="512" rx="112" fill="url(#nex-brand-bg)"/>
-        <rect width="510" height="510" x="1" y="1" rx="111" stroke="url(#nex-brand-pri)" strokeWidth="2" strokeOpacity="0.3"/>
-        <g transform="translate(0, 0)">
-          <path d="M128 376V156C128 142.745 138.745 132 152 132H184C197.255 132 208 142.745 208 156V376C208 389.255 197.255 400 184 400H152C138.745 400 128 389.255 128 376Z" fill="url(#nex-brand-pri)"/>
-          <path d="M304 376V156C304 142.745 314.745 132 328 132H360C373.255 132 384 142.745 384 156V376C384 389.255 373.255 400 360 400H328C314.745 400 304 389.255 304 376Z" fill="url(#nex-brand-pri)"/>
-          <path d="M184 144L328 356C335 366.5 348 370 358 363L366 357C376 350 378 337 371 326.5L227 114C220 103.5 207 100 197 107L189 113C179 120 177 133 184 144Z" fill="url(#nex-brand-dune)"/>
-          <circle cx="256" cy="235" r="14" fill="#ffffff"/>
-          <path d="M112 424C196 396 316 452 400 424" stroke="url(#nex-brand-dune)" strokeWidth="8" strokeLinecap="round" strokeOpacity="0.8"/>
-        </g>
-      </svg>
-      {word && <span className="nexdune-word">nexdune</span>}
-    </span>
-  )
+  return <span className={word ? "colibri-brand full" : "colibri-brand"} aria-label="Nexdune">
+    <svg viewBox="0 21 168 126" aria-hidden="true" stroke="none"><g shapeRendering="crispEdges" stroke="none" transform="translate(7 21)">
+<rect height="14" width="14" x="56" y="0" fill="#d75fd7"></rect><rect height="14" width="14" x="70" y="0" fill="#d75fd7"></rect><rect height="14" width="14" x="84" y="0" fill="#d75fd7"></rect>
+<rect height="14" width="14" x="42" y="14" fill="#d75fd7"></rect><rect height="14" width="14" x="56" y="14" fill="#d75fd7"></rect><rect height="14" width="14" x="70" y="14" fill="#d75fd7"></rect><rect height="14" width="14" x="84" y="14" fill="#d75fd7"></rect><rect height="14" width="14" x="98" y="14" fill="#d75fd7"></rect><rect height="14" width="14" x="140" y="14" fill="#5fd7d7"></rect>
+<rect height="14" width="14" x="56" y="28" fill="#d75fd7"></rect><rect height="14" width="14" x="70" y="28" fill="#d75fd7"></rect><rect height="14" width="14" x="84" y="28" fill="#d75fd7"></rect><rect height="14" width="14" x="98" y="28" fill="#d75fd7"></rect><rect height="14" width="14" x="126" y="28" fill="#5fd7d7"></rect><rect height="14" width="14" x="140" y="28" fill="#5fd7d7"></rect>
+<rect height="14" width="14" x="0" y="42" fill="#ff8700"></rect><rect height="14" width="14" x="14" y="42" fill="#ff8700"></rect><rect height="14" width="14" x="28" y="42" fill="#ff8700"></rect><rect height="14" width="14" x="42" y="42" fill="#ff8700"></rect><rect height="14" width="14" x="56" y="42" fill="#00afaf"></rect><rect height="14" width="14" x="70" y="42" fill="#00afaf"></rect><rect height="14" width="14" x="84" y="42" fill="#fff"></rect><rect height="14" width="14" x="98" y="42" fill="#00afaf"></rect><rect height="14" width="14" x="112" y="42" fill="#5fd7d7"></rect><rect height="14" width="14" x="126" y="42" fill="#5fd7d7"></rect>
+<rect height="14" width="14" x="56" y="56" fill="#00afaf"></rect><rect height="14" width="14" x="70" y="56" fill="#00afaf"></rect><rect height="14" width="14" x="84" y="56" fill="#00afaf"></rect><rect height="14" width="14" x="98" y="56" fill="#00afaf"></rect><rect height="14" width="14" x="112" y="56" fill="#00afaf"></rect><rect height="14" width="14" x="126" y="56" fill="#5fd7d7"></rect><rect height="14" width="14" x="140" y="56" fill="#5fd7d7"></rect>
+<rect height="14" width="14" x="70" y="70" fill="#00afaf"></rect><rect height="14" width="14" x="84" y="70" fill="#00afaf"></rect><rect height="14" width="14" x="98" y="70" fill="#00afaf"></rect><rect height="14" width="14" x="112" y="70" fill="#00afaf"></rect><rect height="14" width="14" x="126" y="70" fill="#5fd7d7"></rect><rect height="14" width="14" x="140" y="70" fill="#5fd7d7"></rect>
+<rect height="14" width="14" x="84" y="84" fill="#00afaf"></rect><rect height="14" width="14" x="98" y="84" fill="#00afaf"></rect><rect height="14" width="14" x="112" y="84" fill="#5fd7d7"></rect><rect height="14" width="14" x="126" y="84" fill="#5fd7d7"></rect>
+<rect height="14" width="14" x="98" y="98" fill="#00afaf"></rect><rect height="14" width="14" x="112" y="98" fill="#5fd7d7"></rect>
+<rect height="14" width="14" x="112" y="112" fill="#5fd7d7"></rect>
+</g></svg>
+    {word && <span className="colibri-word">Nexdune</span>}
+  </span>
 }
