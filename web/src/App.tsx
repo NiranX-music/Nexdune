@@ -73,6 +73,49 @@ const message = (role: ChatMessage["role"], content: string, images?: string[]):
   return images?.length ? { id, role, content, images } : { id, role, content }
 }
 
+function ReasoningBlock({
+  reasoning,
+  isLive,
+  onOpenSidebar,
+}: {
+  reasoning: string
+  isLive: boolean
+  onOpenSidebar: () => void
+}) {
+  const [open, setOpen] = useState(true)
+
+  return (
+    <details
+      className="reasoning-bubble"
+      open={open}
+      onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}
+    >
+      <summary className="reasoning-summary">
+        <div className="flex items-center gap-1.5">
+          <BrainCircuit className={cn("size-3.5", isLive && "animate-pulse text-[#5fd7d7]")} />
+          <span>{isLive ? "Thinking live..." : "Thinking Process"}</span>
+        </div>
+        <button
+          type="button"
+          className="reasoning-side-btn"
+          title="Open in Right Sidebar"
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            onOpenSidebar()
+          }}
+        >
+          <PanelRightOpen className="size-3" />
+          <span>Side View</span>
+        </button>
+      </summary>
+      <div className="reasoning-content">
+        <Markdown text={reasoning} />
+      </div>
+    </details>
+  )
+}
+
 export default function App() {
   const { t, locale, setLocale, locales } = useLocale()
 
@@ -91,7 +134,16 @@ export default function App() {
   const [model, setModel] = useState(() => stored(localStorage, "nexdune.model", "olmoe-nexdune"))
   const [temperature, setTemperature] = useState(0.7)
   const [maxTokens, setMaxTokens] = useState(4096)
-  const [thinking, setThinking] = useState(false)
+  const [thinking, setThinking] = useState(() => stored(localStorage, "nexdune.thinking", "true") === "true")
+  const toggleThinking = () => {
+    setThinking((val) => {
+      const next = !val
+      try {
+        localStorage.setItem("nexdune.thinking", String(next))
+      } catch {}
+      return next
+    })
+  }
   const [cacheSlot, setCacheSlot] = useState(0)
   const [conversations, setConversations] = useState<Record<number, ChatMessage[]>>({ 0: [] })
   const [health, setHealth] = useState<HealthResponse | null>(null)
@@ -290,6 +342,7 @@ export default function App() {
     setTokPerSec(null)
     setTtft(null)
     setElapsed(0)
+    setSelectedReasoning(null)
     let decodeStart = 0
     const t0 = performance.now()
     let firstToken = true
@@ -555,7 +608,7 @@ export default function App() {
           type="button"
           className={cn("toggle-row", thinking && "active")}
           aria-pressed={thinking}
-          onClick={() => setThinking((value) => !value)}
+          onClick={toggleThinking}
         >
           <span>
             <BrainCircuit className="size-4" /> {t("sidebar.reasoning")}
@@ -966,31 +1019,14 @@ export default function App() {
                       ) : null}
                       <div className="message-body">
                         {item.reasoning ? (
-                          <details className="reasoning-bubble" open={!item.content}>
-                            <summary className="reasoning-summary">
-                              <div className="flex items-center gap-1.5">
-                                <BrainCircuit className="size-3.5" />
-                                <span>{loading && !item.content ? "Thinking live..." : "Thinking Process"}</span>
-                              </div>
-                              <button
-                                type="button"
-                                className="reasoning-side-btn"
-                                title="Open in Right Sidebar"
-                                onClick={(e) => {
-                                  e.preventDefault()
-                                  e.stopPropagation()
-                                  setSelectedReasoning(item.reasoning || null)
-                                  setThinkingSidebarOpen(true)
-                                }}
-                              >
-                                <PanelRightOpen className="size-3" />
-                                <span>Side View</span>
-                              </button>
-                            </summary>
-                            <div className="reasoning-content">
-                              <Markdown text={item.reasoning} />
-                            </div>
-                          </details>
+                          <ReasoningBlock
+                            reasoning={item.reasoning}
+                            isLive={loading && !item.content}
+                            onOpenSidebar={() => {
+                              setSelectedReasoning(item.reasoning || null)
+                              setThinkingSidebarOpen(true)
+                            }}
+                          />
                         ) : null}
                         {item.content ? (
                           item.role === "assistant" ? (
@@ -1136,7 +1172,7 @@ export default function App() {
                     type="button"
                     className="reasoning-chip"
                     aria-pressed={thinking}
-                    onClick={() => setThinking((value) => !value)}
+                    onClick={toggleThinking}
                   >
                     <BrainCircuit />
                     {t("sidebar.reasoning")}
@@ -1216,11 +1252,32 @@ export default function App() {
           </header>
           <div className="thinking-sidebar-body">
             {activeReasoning ? (
-              <Markdown text={activeReasoning} />
+              <div className="thinking-markdown-wrap">
+                {loading && (
+                  <div className="thinking-live-badge mb-3 flex items-center gap-1.5 text-xs text-[#5fd7d7] font-medium">
+                    <BrainCircuit className="size-3.5 animate-pulse" />
+                    <span>Thinking live...</span>
+                  </div>
+                )}
+                <Markdown text={activeReasoning} />
+              </div>
+            ) : loading ? (
+              <div className="thinking-empty">
+                <BrainCircuit className="size-8 text-[#5fd7d7] animate-pulse mx-auto mb-2" />
+                <p className="text-sm font-medium">Generating step-by-step thoughts...</p>
+                <div className="typing mt-2"><i /><i /><i /></div>
+              </div>
             ) : (
               <div className="thinking-empty">
                 <BrainCircuit className="size-8 opacity-30 mx-auto mb-2" />
-                <p>No thinking content for this turn. Enable Reasoning in Controls to inspect thoughts live.</p>
+                <p>No thinking content for this turn.</p>
+                <button
+                  type="button"
+                  className="mt-3 px-3 py-1.5 text-xs rounded bg-primary/20 hover:bg-primary/30 text-primary border border-primary/40 transition"
+                  onClick={toggleThinking}
+                >
+                  {thinking ? "Reasoning is ON" : "Enable Reasoning"}
+                </button>
               </div>
             )}
           </div>
