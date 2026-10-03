@@ -14,7 +14,7 @@ export interface ChatMessage {
   images?: string[]
   /* How an assistant turn's last generation ended: the server's finish_reason;
      "aborted" / "error" when the client stopped or lost the stream; or
-     "incomplete" when the stream closed without a finish_reason, which nexdune
+     "incomplete" when the stream closed without a finish_reason, which colibri
      always sends last, so its absence means the reply was cut off. Kept on
      the message so it travels with the transcript through slot switches and
      archives; never sent to the server. */
@@ -63,7 +63,7 @@ export interface HealthResponse {
   tiers?: TiersHealth
   hwinfo?: HwinfoHealth
   /* Whether a message list ending on an assistant turn is continued rather than
-     answered fresh (NEXDUNE_CONTINUE_ASSISTANT). Absent on older servers. */
+     answered fresh (COLI_CONTINUE_ASSISTANT). Absent on older servers. */
   continue_assistant?: boolean
 }
 
@@ -200,15 +200,104 @@ export async function streamChat(options: StreamChatOptions): Promise<StreamChat
   let finishReason: string | null = null
   let usage: TokenUsage | null = null
 
+  // Thinking stream parser for inline <think>...</think> or <thought>...</thought> tags
+  let inThink = false
+  let thinkBuffer = ""
+
+  const handleTextChunk = (raw: string) => {
+    thinkBuffer += raw
+    while (thinkBuffer.length > 0) {
+      if (!inThink) {
+        const openIdx = thinkBuffer.indexOf("<think>")
+        if (openIdx !== -1) {
+          const before = thinkBuffer.slice(0, openIdx)
+          if (before) options.onDelta(before)
+          inThink = true
+          thinkBuffer = thinkBuffer.slice(openIdx + 7)
+          continue
+        }
+        const openThoughtIdx = thinkBuffer.indexOf("<thought>")
+        if (openThoughtIdx !== -1) {
+          const before = thinkBuffer.slice(0, openThoughtIdx)
+          if (before) options.onDelta(before)
+          inThink = true
+          thinkBuffer = thinkBuffer.slice(openThoughtIdx + 9)
+          continue
+        }
+
+        const partials = ["<", "<t", "<th", "<thi", "<thin", "<think", "<tho", "<thou", "<thoug", "<though", "<thought"]
+        let holdLen = 0
+        for (const p of partials) {
+          if (thinkBuffer.endsWith(p)) {
+            holdLen = p.length
+            break
+          }
+        }
+        const emitText = thinkBuffer.slice(0, thinkBuffer.length - holdLen)
+        if (emitText) options.onDelta(emitText)
+        thinkBuffer = thinkBuffer.slice(thinkBuffer.length - holdLen)
+        break
+      } else {
+        const closeIdx = thinkBuffer.indexOf("</think>")
+        if (closeIdx !== -1) {
+          const thinkContent = thinkBuffer.slice(0, closeIdx)
+          if (thinkContent) options.onReasoning?.(thinkContent)
+          inThink = false
+          thinkBuffer = thinkBuffer.slice(closeIdx + 8)
+          if (thinkBuffer.startsWith("\n\n")) thinkBuffer = thinkBuffer.slice(2)
+          else if (thinkBuffer.startsWith("\n")) thinkBuffer = thinkBuffer.slice(1)
+          continue
+        }
+        const closeThoughtIdx = thinkBuffer.indexOf("</thought>")
+        if (closeThoughtIdx !== -1) {
+          const thinkContent = thinkBuffer.slice(0, closeThoughtIdx)
+          if (thinkContent) options.onReasoning?.(thinkContent)
+          inThink = false
+          thinkBuffer = thinkBuffer.slice(closeThoughtIdx + 10)
+          if (thinkBuffer.startsWith("\n\n")) thinkBuffer = thinkBuffer.slice(2)
+          else if (thinkBuffer.startsWith("\n")) thinkBuffer = thinkBuffer.slice(1)
+          continue
+        }
+
+        const partials = ["<", "</", "</t", "</th", "</thi", "</thin", "</think", "</tho", "</thou", "</thoug", "</though", "</thought"]
+        let holdLen = 0
+        for (const p of partials) {
+          if (thinkBuffer.endsWith(p)) {
+            holdLen = p.length
+            break
+          }
+        }
+        const emitThink = thinkBuffer.slice(0, thinkBuffer.length - holdLen)
+        if (emitThink) options.onReasoning?.(emitThink)
+        thinkBuffer = thinkBuffer.slice(thinkBuffer.length - holdLen)
+        break
+      }
+    }
+  }
+
+  const flushThinkBuffer = () => {
+    if (thinkBuffer) {
+      if (inThink) {
+        options.onReasoning?.(thinkBuffer)
+      } else {
+        options.onDelta(thinkBuffer)
+      }
+      thinkBuffer = ""
+    }
+  }
+
   const consume = (data: string) => {
-    if (data === "[DONE]") return
+    if (data === "[DONE]") {
+      flushThinkBuffer()
+      return
+    }
     const event = JSON.parse(data) as {
       choices?: Array<{ delta?: { content?: string; reasoning_content?: string }; finish_reason?: string | null }>
       usage?: TokenUsage | null
     }
     const choice = event.choices?.[0]
     const text = choice?.delta?.content
-    if (text) options.onDelta(text)
+    if (text) handleTextChunk(text)
     const reasoning = choice?.delta?.reasoning_content
     if (reasoning) options.onReasoning?.(reasoning)
     if (choice?.finish_reason) finishReason = choice.finish_reason
@@ -223,8 +312,9 @@ export async function streamChat(options: StreamChatOptions): Promise<StreamChat
     parsed.data.forEach(consume)
     if (done) break
   }
+  flushThinkBuffer()
 
-  const queueWaitHeader = response.headers.get("x-nexdune-queue-wait-ms")
+  const queueWaitHeader = response.headers.get("x-colibri-queue-wait-ms")
   const parsedQueueWait = queueWaitHeader === null ? null : Number(queueWaitHeader)
   return {
     finishReason,
