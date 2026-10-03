@@ -1369,6 +1369,9 @@ def render_chat_olmoe(messages, enable_thinking=False, reasoning_effort=None, to
     parts = [boundary]
     if tools and _TOOL_FALLBACK:
         parts.append(f"<|system|>\n{_fallback_tool_preamble(tools)}\n")
+    has_system = any(m.get("role") in ("system", "developer") for m in messages if isinstance(m, dict))
+    if enable_thinking and not has_system:
+        parts.append("<|system|>\nYou are a thoughtful assistant. When answering, first think step-by-step through the problem inside <think>...</think> tags, then provide your clear answer after </think>.\n")
     last = len(messages) - 1
     for index, message in enumerate(messages):
         if not isinstance(message, dict):
@@ -1382,6 +1385,8 @@ def render_chat_olmoe(messages, enable_thinking=False, reasoning_effort=None, to
         raw = message.get("content")
         text = content_text(raw, f"messages.{index}.content") if raw is not None else ""
         if role in ("system", "developer"):
+            if enable_thinking:
+                text = (text + "\nWhen answering, first think step-by-step through the problem inside <think>...</think> tags, then provide your clear answer after </think>.").strip()
             parts.append(f"<|system|>\n{text}\n")
         elif role == "user":
             parts.append(f"<|user|>\n{text}\n")
@@ -1391,6 +1396,9 @@ def render_chat_olmoe(messages, enable_thinking=False, reasoning_effort=None, to
         else:
             calls = (_fallback_tool_calls(message.get("tool_calls"), index)
                      if _TOOL_FALLBACK else "")
+            reasoning = message.get("reasoning_content")
+            if reasoning:
+                text = f"<think>\n{reasoning}\n</think>\n\n{text}"
             # A continued turn is the last message rendered open: no eos, no cue.
             terminator = "" if (not add_generation_prompt and index == last) else boundary
             parts.append(f"<|assistant|>\n{text}{calls}{terminator}")
@@ -1398,6 +1406,8 @@ def render_chat_olmoe(messages, enable_thinking=False, reasoning_effort=None, to
                 parts.append("\n")
     if add_generation_prompt:
         parts.append("<|assistant|>\n")
+        if enable_thinking:
+            parts.append("<think>\n")
     return "".join(parts)
 
 
@@ -2680,6 +2690,8 @@ class ThinkingStreamSplit:
                     self.thinking = False
                     if self.on_thinking_end:
                         self.on_thinking_end()
+                elif marker == THINK_OPEN and not self.thinking:
+                    self.thinking = True
                 continue
 
             hold = 0
@@ -3642,6 +3654,9 @@ class Engine:
                         events = self.pending.pop(request_id, None)
                     if events is not None:
                         events.put(("error", _engine_error(fields[2:], message)))
+                elif kind.startswith("[") or kind.startswith("==") or kind.startswith("Speed:") or not fields:
+                    sys.stderr.write(f"[engine] {' '.join(fields)}\n")
+                    sys.stderr.flush()
                 else:
                     raise RuntimeError(f"invalid engine response: {' '.join(fields)}")
         except Exception as error:
@@ -5187,15 +5202,6 @@ class APIHandler(BaseHTTPRequestHandler):
         enable_thinking = body.get("enable_thinking", reasoning_effort not in (None, "none"))
         if not isinstance(enable_thinking, bool):
             raise APIError(400, "`enable_thinking` must be a boolean.", "enable_thinking")
-        if ARCH == "olmoe" and enable_thinking:
-            # OLMoE's template has no thinking mode (render_chat_olmoe: "accepted
-            # but unused"), so the engine never emits <think>/</think>. Left on,
-            # the reasoning splitter files the ENTIRE answer as reasoning_content
-            # and streams an empty `content` -- the drop reported in #984, which
-            # bit streaming (ThinkingStreamSplit stays in thinking mode forever)
-            # while non-streaming happened to survive. Make the template's "unused"
-            # true end-to-end instead of trusting every path to opt out.
-            enable_thinking = False
         tools = body.get("tools") or body.get("functions") or None
         tool_choice = body.get("tool_choice")
         audio_clips = [] if ARCH == "inkling" else None
@@ -5259,8 +5265,6 @@ class APIHandler(BaseHTTPRequestHandler):
                 enable_thinking = True
             elif os.environ.get("COLI_THINK", "0") == "1":
                 enable_thinking = True
-        if ARCH == "olmoe":
-            enable_thinking = False   # #984: OLMoE has no thinking mode (see the OpenAI path)
         if body.get("max_tokens") is None:
             raise APIError(400, "`max_tokens` is required.", "max_tokens")
         # Reuse the OpenAI path's own validation by handing it an equivalent body.
