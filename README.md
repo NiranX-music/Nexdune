@@ -42,21 +42,21 @@ $ ./nexdune chat
 ## See it running
 
 <p align="center">
-  <img src="docs/media/nexdune-dashboard.png" width="900" alt="nexdune web dashboard — live metrics, hardware panel, expert tiers">
+ 
 </p>
 <p align="center"><em>The web dashboard (<code>./nexdune web</code>), redesigned in 1.12.0: a workspace with a dock for the chat,
 Brio mode, the Brain page and Profiling, in a light or a dark theme. Here Qwen3.6 answering on a CPU box,
 experts streamed from disk.</em></p>
 
 <p align="center">
-  <img src="docs/media/nexdune-brio.png" width="900" alt="the Brio page: a document read once, a probability for every allowed answer, and an entropy">
+ 
 </p>
 <p align="center"><em><strong>Brio mode</strong>: the same model, told to stop writing. Give it a document and the only answers
 it may pick; it reads the probability of each one, generates nothing, and reports an entropy that says when it is
 not sure. Here: <strong>request changes at 99.9%</strong>, entropy 0.005, 4 tokens read, 0 generated.</em></p>
 
 <p align="center">
-  <img src="docs/media/nexdune-brain.png" width="900" alt="the Brain page: the measured expert atlas of GLM-5.2 drawn as a cortex, ten regions to enter">
+ 
 </p>
 <p align="center"><em>The <strong>Brain</strong> page, <strong>Explore</strong>: the <a href="https://github.com/NiranX-music/Nexdune/issues/175">measured expert atlas</a> of GLM-5.2
 drawn as a cortex. 13,260 characterised experts in ten regions (Python, SQL, mathematics, poetry, law, Chinese…);
@@ -64,14 +64,14 @@ position is measured routing affinity, not a learned embedding. Choose a region 
 to the model actually running: one cell per expert, colour is the storage tier, and every expert routed in a turn flashes white.</em></p>
 
 <p align="center">
-  <img src="docs/media/nexdune-brain-region.png" width="900" alt="inside the Python region: 1,142 experts, one of them selected with its measured affinities">
+ 
 </p>
 <p align="center"><em>Inside the <strong>Python</strong> region: 1,142 experts as a constellation, each labelled by layer and index. The panel shows
 one of them, layer 17 expert 178: a generalist with entropy 3.13, whose measured affinity is 20.2% Python, 14.6% JSON,
 14.2% conversation, 13.3% SQL.</em></p>
 
 <p align="center">
-  <img src="docs/media/nexdune-profiling.png" width="900" alt="the Profiling page: where the engine spends each turn">
+
 </p>
 <p align="center"><em>The <strong>Profiling</strong> page: where the engine spends each turn, by phase, with the last 30 turns as a trend.
 Here Qwen3.6 on a CPU box: 19.0 s of wall time for 36 prompt and 55 generated tokens, 2.9 tok/s, 11.4 s of disk
